@@ -1,0 +1,36 @@
+# OS/editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Runtime logs and temp files
+*.log
+*.tmp
+*.bak
+*.pid
+nohup.out
+
+# Deprecated document layout
+docs/
+
+# Local environment and secrets
+.env
+.env.*
+*.key
+*.pem
+*.crt
+
+# Dependency/build caches
+node_modules/
+.venv/
+venv/
+target/
+dist/
+build/
+
+# Vector local runtime state
+.vector/
+vector-data/
+vector.log

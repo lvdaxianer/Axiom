@@ -1,0 +1,83 @@
+data_dir = "/var/lib/vector"
+
+[sources.topo_nginx_log]
+type = "file"
+include = ["/uinnova/nginx/nginx/logs/topo_save_or_update.log"]
+read_from = "end"
+
+[transforms.parse_nginx_log]
+type = "remap"
+inputs = ["topo_nginx_log"]
+source = '''
+. = parse_json!(.message)
+'''
+
+[transforms.extract_topo_event]
+type = "remap"
+inputs = ["parse_nginx_log"]
+source = '''
+method = string(.method) ?? ""
+uri = string(.uri) ?? ""
+status = to_int(.status) ?? 0
+request_body = string(.request_body) ?? ""
+
+body = parse_json(request_body) ?? {}
+topo_id = string(body.diagramId) ?? ""
+
+.method_text = method
+.uri_text = uri
+.status_code = status
+.topo_id = topo_id
+
+.is_valid_topo_save = method == "POST" &&
+  ends_with(uri, "/thing-api/topo/eam/esDiagram/saveOrUpdateDiagramComponent") &&
+  status >= 200 &&
+  status < 300 &&
+  topo_id != ""
+'''
+
+[transforms.only_valid_topo_save]
+type = "filter"
+inputs = ["extract_topo_event"]
+condition = '''
+bool(.is_valid_topo_save) ?? false
+'''
+
+[transforms.prepare_listener_event]
+type = "remap"
+inputs = ["only_valid_topo_save"]
+source = '''
+topo_id = string!(.topo_id)
+. = {}
+.message = "{\"topoId\":\"" + topo_id + "\"}"
+.topoId = topo_id
+'''
+
+[sinks.debug_matched_events]
+type = "console"
+inputs = ["prepare_listener_event"]
+encoding.codec = "json"
+
+[sinks.topo_listener]
+type = "http"
+inputs = ["prepare_listener_event"]
+uri = "http://10.100.30.239:8180/projectScene/offlineTopo/sync"
+method = "post"
+
+[sinks.topo_listener.headers]
+Content-Type = "application/json"
+
+[sinks.topo_listener.healthcheck]
+enabled = false
+
+[sinks.topo_listener.encoding]
+codec = "text"
+
+[sinks.topo_listener.batch]
+max_events = 1
+timeout_secs = 1
+
+[sinks.topo_listener.buffer]
+type = "disk"
+max_size = 268435488
+when_full = "block"
