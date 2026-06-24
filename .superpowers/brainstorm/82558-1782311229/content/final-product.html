@@ -1,0 +1,1136 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>设计文件智能体 · 最终产品原型</title>
+    <meta name="description" content="面向模板校验、知识治理与智能体编排的最终产品原型，展示功能地图、选型与执行流程。" />
+    <style>
+      :root {
+        --bg: #f7f8fb;
+        --panel: #ffffff;
+        --ink: #172033;
+        --muted: #6f7a91;
+        --line: #e7ebf3;
+        --primary: #4f46e5;
+        --primary-2: #7c3aed;
+        --primary-soft: #eef2ff;
+        --green: #0ea76b;
+        --amber: #d97706;
+        --red: #dc2626;
+        --shadow: 0 18px 42px rgba(17, 24, 39, 0.08);
+        --radius: 20px;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-width: 1280px;
+        min-height: 100vh;
+        color: var(--ink);
+        font-family: Inter, PingFang SC, Microsoft YaHei, Arial, sans-serif;
+        background:
+          radial-gradient(circle at 0 0, rgba(79,70,229,.08), transparent 24%),
+          radial-gradient(circle at 100% 0, rgba(124,58,237,.06), transparent 20%),
+          linear-gradient(180deg, #fbfcff 0%, #f5f7fb 100%);
+      }
+      button, input, textarea { font: inherit; }
+      button { border: 0; cursor: pointer; }
+
+      .shell {
+        display: grid;
+        grid-template-rows: 72px 1fr;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .topbar {
+        display: grid;
+        grid-template-columns: 280px 1fr 260px;
+        align-items: center;
+        padding: 0 22px;
+        background: rgba(255,255,255,.9);
+        border-bottom: 1px solid var(--line);
+        backdrop-filter: blur(18px);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .brand-mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, var(--primary), var(--primary-2));
+        box-shadow: 0 12px 24px rgba(79,70,229,.22);
+      }
+      .brand strong { display: block; font-size: 18px; }
+      .brand small { display: block; margin-top: 2px; color: var(--muted); }
+      .tabs {
+        justify-self: center;
+        display: flex;
+        gap: 8px;
+        padding: 6px;
+        background: #f2f4f8;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+      }
+      .tab {
+        height: 40px;
+        padding: 0 16px;
+        border-radius: 12px;
+        color: #53607b;
+        background: transparent;
+        font-weight: 700;
+      }
+      .tab.active {
+        color: #fff;
+        background: linear-gradient(135deg, var(--primary), var(--primary-2));
+        box-shadow: 0 10px 22px rgba(79,70,229,.24);
+      }
+      .top-actions {
+        justify-self: end;
+        display: flex;
+        gap: 10px;
+      }
+      .top-actions .chip {
+        height: 38px;
+        padding: 0 12px;
+        border-radius: 12px;
+        background: #fff;
+        border: 1px solid var(--line);
+        color: #53607b;
+      }
+      .top-actions .avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        background: #1f2937;
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+      }
+      .body {
+        padding: 18px;
+        overflow: hidden;
+      }
+      .page {
+        height: 100%;
+        display: none;
+      }
+      .page.active {
+        display: grid;
+      }
+      .page.system {
+        grid-template-columns: 260px minmax(0, 1fr) 360px;
+        gap: 16px;
+      }
+      .page.brief {
+        grid-template-columns: minmax(0, 1fr) 360px;
+        gap: 16px;
+      }
+      .panel {
+        min-height: 0;
+        background: rgba(255,255,255,.92);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .panel-h {
+        height: 58px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 18px;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(180deg, #fff, #fbfcff);
+      }
+      .panel-h h3 { margin: 0; font-size: 15px; }
+      .panel-h small { color: var(--muted); }
+      .panel-b {
+        padding: 16px;
+        overflow: auto;
+        height: calc(100% - 58px);
+      }
+
+      .sidebar {
+        display: grid;
+        gap: 10px;
+      }
+      .searchbox {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .searchbox input {
+        flex: 1;
+        height: 40px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        padding: 0 12px;
+        background: #fff;
+        color: var(--ink);
+      }
+      .sidebar .section-title {
+        margin: 4px 6px 6px;
+        color: #97a1b5;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+      }
+      .menu-item {
+        padding: 14px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: #fff;
+        text-align: left;
+      }
+      .menu-item.active {
+        border-color: #d7dcf4;
+        background: linear-gradient(90deg, #fff, #f7f6ff);
+        box-shadow: inset 4px 0 0 var(--primary);
+      }
+      .menu-item strong { display: block; font-size: 14px; }
+      .menu-item small { display: block; margin-top: 6px; color: var(--muted); line-height: 1.5; }
+      .menu-item .badge {
+        display: inline-flex;
+        margin-top: 10px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        font-size: 11px;
+      }
+      .sidebar .quick-actions {
+        display: grid;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .sidebar .quick-actions button {
+        height: 42px;
+        padding: 0 12px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: #53607b;
+        text-align: left;
+      }
+      .sidebar .section-title.tight { margin-top: 14px; }
+
+      .workspace {
+        display: grid;
+        grid-template-rows: auto auto auto 1fr;
+        gap: 12px;
+        min-height: 0;
+      }
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 16px;
+        padding: 18px 18px 0;
+      }
+      .hero h2 { margin: 0; font-size: 22px; }
+      .hero p { margin: 6px 0 0; color: var(--muted); }
+      .hero .meta {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .meta span {
+        display: inline-flex;
+        align-items: center;
+        height: 30px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: #f4f6fb;
+        color: #53607b;
+        border: 1px solid var(--line);
+        font-size: 12px;
+      }
+      .overview-strip {
+        padding: 0 18px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .function-map {
+        margin: 0 18px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .function-map .card {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: #fff;
+        padding: 14px;
+      }
+      .function-map .card h4 { margin: 0 0 8px; font-size: 14px; }
+      .function-map .card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+      .section-heading { margin: 0 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+      .section-heading h3 { margin: 0; font-size: 15px; }
+      .section-heading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+      .node-detail { margin: 0 18px 18px; border: 1px solid var(--line); border-radius: 18px; background: #fff; padding: 14px 16px; }
+      .node-detail h4 { margin: 0 0 8px; font-size: 14px; }
+      .node-detail p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+      .overview-strip .item {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: linear-gradient(180deg, #fff, #fbfcff);
+        padding: 14px;
+      }
+      .overview-strip .item span { color: var(--muted); font-size: 12px; }
+      .overview-strip .item strong { display: block; margin-top: 4px; font-size: 22px; }
+      .subtabs {
+        display: flex;
+        gap: 8px;
+        padding: 0 18px;
+        overflow: auto;
+      }
+      .subtabs button {
+        height: 38px;
+        padding: 0 14px;
+        border-radius: 12px;
+        background: #f5f7fb;
+        color: #53607b;
+        border: 1px solid var(--line);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .subtabs button.active {
+        background: #fff;
+        color: var(--primary);
+        border-color: #d9def4;
+        box-shadow: 0 8px 18px rgba(17,24,39,.05);
+      }
+      .canvas {
+        margin: 0 18px 18px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background:
+          linear-gradient(#f7f9fc 1px, transparent 1px),
+          linear-gradient(90deg, #f7f9fc 1px, transparent 1px),
+          linear-gradient(180deg, #fff, #fbfcff);
+        background-size: 28px 28px, 28px 28px, 100% 100%;
+        min-height: 560px;
+        position: relative;
+        overflow: hidden;
+      }
+      .canvas-top {
+        position: absolute;
+        left: 16px;
+        top: 16px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        z-index: 2;
+      }
+      .canvas-top .chip {
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,.94);
+        color: #53607b;
+        font-size: 12px;
+      }
+      .node {
+        position: absolute;
+        width: 170px;
+        border-radius: 18px;
+        border: 1px solid #e8edf7;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15,23,42,.08);
+        padding: 14px;
+        cursor: pointer;
+      }
+      .node strong { display: block; font-size: 14px; margin-bottom: 6px; }
+      .node small { color: var(--muted); line-height: 1.5; }
+      .node.primary {
+        background: linear-gradient(135deg, var(--primary), var(--primary-2));
+        color: #fff;
+        border-color: transparent;
+      }
+      .node.primary small { color: rgba(255,255,255,.8); }
+      .node.orange { background: #fff7f2; border-color: #f2dfd4; }
+      .node.green { background: #f2fff8; border-color: #d9f0e2; }
+      .node.blue { background: #f4f8ff; border-color: #d9e5ff; }
+      .node.gray { background: #fafbfe; border-color: #e5eaf5; }
+      .node.yellow { background: #fffaf0; border-color: #f3e4bb; }
+      .node.purple { background: #f9f7ff; border-color: #e4defd; }
+      .node .tag {
+        display: inline-flex;
+        margin-bottom: 8px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.16);
+        font-size: 11px;
+        color: inherit;
+      }
+      .node.primary .tag { background: rgba(255,255,255,.16); }
+      .node.start { left: 24px; top: 42px; }
+      .node.parse { left: 234px; top: 42px; }
+      .node.indicator { left: 444px; top: 42px; }
+      .node.validate { left: 444px; top: 200px; }
+      .node.review { left: 24px; top: 200px; }
+      .node.report { left: 234px; top: 358px; }
+      .node.kb { left: 654px; top: 42px; }
+      .node.models { left: 654px; top: 200px; }
+      .node.logs { left: 654px; top: 358px; }
+      .node.monitor { left: 654px; top: 516px; }
+      .node.square { left: 234px; top: 516px; }
+      .node.ops { left: 24px; top: 516px; }
+      .node.selected { outline: 2px solid rgba(79,70,229,.22); }
+
+      .canvas-footer {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+        display: grid;
+        grid-template-columns: 1.2fr .8fr;
+        gap: 12px;
+        z-index: 2;
+      }
+      .canvas-footer .foot {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255,255,255,.94);
+        padding: 12px 14px;
+      }
+      .canvas-footer .foot h4 { margin: 0 0 6px; font-size: 13px; }
+      .canvas-footer .foot p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+
+      .line {
+        position: absolute;
+        height: 3px;
+        background: #cfd8ea;
+        border-radius: 999px;
+      }
+      .line.dash {
+        background: repeating-linear-gradient(90deg, #cfd8ea 0 10px, transparent 10px 16px);
+      }
+      .l1 { left: 194px; top: 97px; width: 40px; }
+      .l2 { left: 404px; top: 97px; width: 40px; }
+      .l3 { left: 534px; top: 126px; width: 3px; height: 48px; }
+      .l4 { left: 404px; top: 256px; width: 40px; }
+      .l5 { left: 194px; top: 256px; width: 40px; }
+      .l6 { left: 404px; top: 414px; width: 40px; }
+      .l7 { left: 614px; top: 97px; width: 40px; }
+      .l8 { left: 614px; top: 256px; width: 40px; }
+      .l9 { left: 614px; top: 414px; width: 40px; }
+
+      .right-stack {
+        display: grid;
+        gap: 12px;
+      }
+      .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .stat {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: #fff;
+        padding: 14px;
+      }
+      .stat span { color: var(--muted); font-size: 12px; }
+      .stat strong { display: block; margin-top: 4px; font-size: 22px; }
+      .right-card {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: #fff;
+        padding: 14px;
+      }
+      .right-card h4 { margin: 0 0 8px; font-size: 14px; }
+      .right-card p, .right-card li { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+      .right-card ul { margin: 0; padding-left: 18px; }
+      .issues {
+        display: grid;
+        gap: 10px;
+      }
+      .issue {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        padding: 12px 14px;
+      }
+      .issue b { display: block; font-size: 14px; }
+      .issue small { display: block; margin-top: 6px; color: var(--muted); }
+      .issue.red { box-shadow: inset 4px 0 0 var(--red); }
+      .issue.amber { box-shadow: inset 4px 0 0 var(--amber); }
+      .issue.green { box-shadow: inset 4px 0 0 var(--green); }
+      .config {
+        display: grid;
+        gap: 12px;
+      }
+      .config .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: #53607b;
+        font-size: 12px;
+      }
+      .config .block {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        padding: 14px;
+      }
+      .config .block h4 { margin: 0 0 8px; font-size: 14px; }
+      .config .block p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+      .button {
+        height: 42px;
+        border-radius: 12px;
+        padding: 0 14px;
+        font-weight: 700;
+      }
+      .button.primary { color: #fff; background: linear-gradient(135deg, var(--primary), var(--primary-2)); }
+      .button.soft { color: #53607b; background: #f6f7fb; border: 1px solid var(--line); }
+      .side-summary {
+        display: grid;
+        gap: 10px;
+        margin-top: 8px;
+      }
+      .side-summary .mini {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        padding: 12px 14px;
+      }
+      .side-summary .mini strong { display: block; font-size: 14px; }
+      .side-summary .mini span { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+      .module-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .module-grid .mini {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        padding: 12px 14px;
+      }
+      .module-grid .mini strong { display: block; font-size: 14px; }
+      .module-grid .mini span { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+      .footer-note {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 12px;
+        text-align: right;
+      }
+
+      .brief-layout {
+        padding: 16px 18px 18px;
+        display: grid;
+        grid-template-columns: 1fr 360px;
+        gap: 16px;
+        height: 100%;
+      }
+      .brief-main, .brief-side {
+        min-height: 0;
+        background: rgba(255,255,255,.92);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: auto;
+      }
+      .brief-main { padding: 18px; }
+      .brief-side { padding: 18px; }
+      .brief-title h2 { margin: 0; font-size: 22px; }
+      .brief-title p { margin: 6px 0 0; color: var(--muted); }
+      .brief-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .brief-card {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: #fff;
+        padding: 14px;
+      }
+      .brief-card h4 { margin: 0 0 8px; font-size: 14px; }
+      .brief-card p, .brief-card li { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+      .brief-card ul { margin: 0; padding-left: 18px; }
+      .brief-flow {
+        margin-top: 14px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background:
+          linear-gradient(#f7f9fc 1px, transparent 1px),
+          linear-gradient(90deg, #f7f9fc 1px, transparent 1px),
+          linear-gradient(180deg, #fff, #fbfcff);
+        background-size: 28px 28px, 28px 28px, 100% 100%;
+        min-height: 360px;
+        position: relative;
+        overflow: hidden;
+      }
+      .brief-flow .fnode {
+        position: absolute;
+        width: 170px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: #fff;
+        padding: 14px;
+        box-shadow: 0 10px 24px rgba(15,23,42,.08);
+      }
+      .brief-flow .fnode b { display: block; margin-bottom: 6px; font-size: 14px; }
+      .brief-flow .fnode small { color: var(--muted); line-height: 1.5; }
+      .brief-flow .fnode.start { left: 18px; top: 30px; background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #fff; border-color: transparent; }
+      .brief-flow .fnode.start small { color: rgba(255,255,255,.82); }
+      .brief-flow .fnode.mid1 { left: 228px; top: 30px; background: #fff7f2; border-color: #f2dfd4; }
+      .brief-flow .fnode.mid2 { left: 438px; top: 30px; background: #f4f8ff; border-color: #d9e5ff; }
+      .brief-flow .fnode.mid3 { left: 228px; top: 182px; background: #f2fff8; border-color: #d9f0e2; }
+      .brief-flow .fnode.end { left: 438px; top: 182px; background: #fafbfe; border-color: #e5eaf5; }
+      .brief-flow .fline {
+        position: absolute;
+        height: 3px;
+        background: #cfd8ea;
+        border-radius: 999px;
+      }
+      .brief-flow .d1 { left: 188px; top: 108px; width: 40px; }
+      .brief-flow .d2 { left: 398px; top: 108px; width: 40px; }
+      .brief-flow .d3 { left: 398px; top: 258px; width: 40px; }
+      .brief-flow .d4 { left: 188px; top: 258px; width: 40px; }
+      .method-list {
+        display: grid;
+        gap: 10px;
+      }
+      .method {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        padding: 14px;
+      }
+      .method b { display: block; margin-bottom: 6px; font-size: 14px; }
+      .method p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+      .kv {
+        display: grid;
+        gap: 10px;
+      }
+      .kv .row {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        padding: 12px 14px;
+      }
+      .kv .row strong { display: block; margin-bottom: 6px; font-size: 14px; }
+      .kv .row span { color: var(--muted); font-size: 13px; line-height: 1.6; }
+      .toggles {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .toggles .pill {
+        background: #f9fafc;
+      }
+
+      @media (max-width: 1200px) {
+        body { min-width: 0; }
+        .shell { grid-template-rows: auto 1fr; }
+        .topbar { grid-template-columns: 1fr; gap: 12px; padding: 14px; }
+        .tabs, .top-actions { justify-self: start; }
+        .page.system, .page.brief { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark"></div>
+          <div>
+            <strong>Design Agent</strong>
+            <small>设计文件智能体 · 最终产品原型</small>
+          </div>
+        </div>
+
+        <nav class="tabs" aria-label="主导航">
+          <button class="tab active" data-page="system">系统原型</button>
+          <button class="tab" data-page="brief">技术说明</button>
+        </nav>
+
+        <div class="top-actions">
+          <button class="chip">发布</button>
+          <button class="chip">运行</button>
+          <div class="avatar">陈</div>
+        </div>
+      </header>
+
+      <div class="body">
+        <section class="page system active" id="page-system">
+          <aside class="panel">
+            <div class="panel-h"><h3>应用与模块</h3><small>最终版</small></div>
+            <div class="panel-b sidebar">
+              <div class="searchbox">
+                <input value="搜索应用 / 模块 / 日志 / 模型" />
+              </div>
+              <div class="section-title">Applications</div>
+              <button class="menu-item active">
+                <strong>文档审核智能体</strong>
+                <small>模板约束、指标校验、证据链输出</small>
+                <span class="badge">核心应用</span>
+              </button>
+              <button class="menu-item">
+                <strong>知识库治理</strong>
+                <small>指标模板、候选图谱、chunk、证据链</small>
+                <span class="badge">知识生产</span>
+              </button>
+              <button class="menu-item">
+                <strong>智能体编排</strong>
+                <small>节点、流程、调试、发布、回滚</small>
+                <span class="badge">可视化流程</span>
+              </button>
+              <button class="menu-item">
+                <strong>知识问答</strong>
+                <small>检索、重排、回答、引用来源</small>
+                <span class="badge">交互应用</span>
+              </button>
+              <button class="menu-item">
+                <strong>智能体广场</strong>
+                <small>统一发布审核应用与问答应用</small>
+                <span class="badge">应用市场</span>
+              </button>
+
+              <div class="section-title tight">Recent</div>
+              <div class="side-summary">
+                <div class="mini">
+                  <strong>最近运行</strong>
+                  <span>软件设计说明审核任务 · 09:40 · 18 个问题</span>
+                </div>
+                <div class="mini">
+                  <strong>最近发布</strong>
+                  <span>知识问答应用 v1.3 · 已发布到广场</span>
+                </div>
+              </div>
+
+              <div class="section-title tight">Quick Actions</div>
+              <div class="quick-actions">
+                <button>+ 新建模板</button>
+                <button>+ 新建知识库</button>
+                <button>+ 新建流程</button>
+                <button>+ 新建问答</button>
+              </div>
+            </div>
+          </aside>
+
+          <main class="panel">
+            <div class="panel-h">
+              <div>
+                <h3>审查工作台</h3>
+                <small>更接近 Dify 的轻产品风格</small>
+              </div>
+              <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;">
+                <span class="pill">模板管理</span>
+                <span class="pill">指标管理</span>
+                <span class="pill">图谱审核</span>
+                <span class="pill">规则引擎</span>
+              </div>
+            </div>
+            <div class="panel-b workspace">
+              <section class="hero">
+                <div>
+                  <h2>模板约束驱动的文档校验与知识治理平台</h2>
+                  <p>最终版目标不是单次演示，而是可持续运营的平台：把模板、指标、知识库、编排、日志、监控、模型和广场统一起来。</p>
+                </div>
+                <div class="meta">
+                  <span>日志与监控</span>
+                  <span>模型管理</span>
+                  <span>知识库管理</span>
+                  <span>智能体广场</span>
+                </div>
+              </section>
+
+              <div class="section-heading">
+                <div>
+                  <h3>功能地图</h3>
+                  <p>每个模块都标明职责，避免只看到名字看不出用途。</p>
+                </div>
+              </div>
+
+              <section class="function-map">
+                <div class="card"><h4>文档审核</h4><p>按模板和指标校验字号、标题、章节、术语和内容约束，并输出问题与依据。</p></div>
+                <div class="card"><h4>知识库治理</h4><p>把模板转成可审核的指标和候选图谱，再录入文档与证据链。</p></div>
+                <div class="card"><h4>智能体编排</h4><p>固定业务节点串起解析、装载、校验、复核和输出，执行层由后端掌控。</p></div>
+                <div class="card"><h4>模型管理</h4><p>统一管理 LLM、OCR、VL、Embedding、Rerank 和 Parser 的接入、路由与健康。</p></div>
+                <div class="card"><h4>日志与监控</h4><p>按用户、任务、知识库和模型记录操作日志，并监控服务健康与告警。</p></div>
+                <div class="card"><h4>智能体广场</h4><p>集中展示已发布的审核应用和问答应用，支持直接运行与版本发布。</p></div>
+              </section>
+
+              <section class="overview-strip">
+                <div class="item"><span>今日审核</span><strong>286</strong></div>
+                <div class="item"><span>知识分片</span><strong>48,216</strong></div>
+                <div class="item"><span>模型调用</span><strong>1.8M</strong></div>
+                <div class="item"><span>异常率</span><strong>1.7%</strong></div>
+              </section>
+
+              <div class="subtabs">
+                <button class="active">文档审核</button>
+                <button>知识治理</button>
+                <button>编排后台</button>
+                <button>模型管理</button>
+                <button>日志监控</button>
+                <button>智能体广场</button>
+              </div>
+
+              <section class="canvas">
+                <div class="canvas-top">
+                  <span class="chip">模板管理</span>
+                  <span class="chip">指标管理</span>
+                  <span class="chip">图谱审核</span>
+                  <span class="chip">规则引擎</span>
+                  <span class="chip">证据链 Trace</span>
+                </div>
+                <div class="line l1 dash"></div>
+                <div class="line l2 dash"></div>
+                <div class="line l3"></div>
+                <div class="line l4 dash"></div>
+                <div class="line l5 dash"></div>
+                <div class="line l6 dash"></div>
+                <div class="line l7 dash"></div>
+                <div class="line l8 dash"></div>
+                <div class="line l9 dash"></div>
+
+                <div class="node primary start selected" data-node="start">
+                  <div class="tag">入口</div>
+                  <strong>开始</strong>
+                  <small>上传文件 / 选择模板 / 绑定知识库</small>
+                </div>
+                <div class="node orange parse" data-node="parse">
+                  <strong>文档解析</strong>
+                  <small>Word / PDF / OCR / 标题树 / 表格结构</small>
+                </div>
+                <div class="node blue indicator" data-node="indicator">
+                  <strong>指标装载</strong>
+                  <small>结构、样式、内容、条件必填、术语</small>
+                </div>
+                <div class="node yellow review" data-node="review">
+                  <strong>人工确认</strong>
+                  <small>低置信结果转人工复核</small>
+                </div>
+                <div class="node green validate" data-node="validate">
+                  <strong>规则校验</strong>
+                  <small>哪里错了、为什么错了、依据是什么</small>
+                </div>
+                <div class="node gray report" data-node="report">
+                  <strong>报告生成</strong>
+                  <small>审查报告、修改建议、Trace</small>
+                </div>
+                <div class="node orange kb" data-node="kb">
+                  <strong>知识库治理</strong>
+                  <small>模板、指标、图谱、chunk、证据链</small>
+                </div>
+                <div class="node purple models" data-node="models">
+                  <strong>模型管理</strong>
+                  <small>LLM、embedding、rerank、OCR、VL、parser</small>
+                </div>
+                <div class="node blue logs" data-node="logs">
+                  <strong>日志中心</strong>
+                  <small>用户日志、任务日志、模型日志、服务健康</small>
+                </div>
+                <div class="node green monitor" data-node="monitor">
+                  <strong>监控中心</strong>
+                  <small>服务、任务、模型、告警、健康检查</small>
+                </div>
+                <div class="node yellow square" data-node="square">
+                  <strong>智能体广场</strong>
+                  <small>审核应用、问答应用、统一运行入口</small>
+                </div>
+                <div class="node gray ops" data-node="ops">
+                  <strong>权限与审计</strong>
+                  <small>版本、发布、回滚、细粒度权限</small>
+                </div>
+
+                <div class="canvas-footer">
+                  <div class="foot">
+                    <h4>平台发布路径</h4>
+                    <p>文档审核应用、知识问答应用、编排流程和模板图谱都可以发布到智能体广场，供不同角色直接运行。</p>
+                  </div>
+                  <div class="foot">
+                    <h4>运维概览</h4>
+                    <p>日志、监控、模型健康、任务追踪、告警和权限审计统一纳管，支持管理员全局查看。</p>
+                  </div>
+                </div>
+              </section>
+
+              <div class="node-detail">
+                <h4>编排怎么做</h4>
+                <p>我们采用固定业务节点而不是通用自由编排：前端用 React Flow 负责画流程和配置，后端用 FastAPI + Celery 执行 DSL、调度模型、回写证据链，保证流程可控、可审、可回放。</p>
+              </div>
+
+              <div class="footer-note">静态预览 · 接近最终产品形态</div>
+            </div>
+          </main>
+
+          <aside class="panel">
+            <div class="panel-h">
+              <h3>状态与配置</h3>
+              <small>运行态</small>
+            </div>
+            <div class="panel-b right-stack">
+              <div class="stat-grid">
+                <div class="stat"><span>知识分片</span><strong>48,216</strong></div>
+                <div class="stat"><span>规则对象</span><strong>1,284</strong></div>
+                <div class="stat"><span>月调用量</span><strong>36,902</strong></div>
+                <div class="stat"><span>平均命中率</span><strong>87.5%</strong></div>
+              </div>
+
+              <div class="right-card">
+                <h4>当前命中依据</h4>
+                <p>GJB438C-章节完整性、需求可追踪性、接口一致性、术语规范。</p>
+              </div>
+
+              <div class="right-card">
+                <h4>当前问题</h4>
+                <div class="issues">
+                  <div class="issue red" data-issue="red">
+                    <b>需求追踪缺失</b>
+                    <small>SDD 第 5 章未关联 SRS 对应需求编号</small>
+                  </div>
+                  <div class="issue amber" data-issue="amber">
+                    <b>术语不统一</b>
+                    <small>“软件配置项”存在 3 种写法</small>
+                  </div>
+                  <div class="issue green" data-issue="green">
+                    <b>格式建议</b>
+                    <small>二级标题编号样式建议统一</small>
+                  </div>
+                </div>
+              </div>
+
+              <div class="right-card">
+                <h4>知识库录入</h4>
+                <ul>
+                  <li>选择模板后按指标生成候选图谱</li>
+                  <li>人工审核后进入正式知识库</li>
+                  <li>证据链保留文件、页码与段落</li>
+                </ul>
+              </div>
+
+              <div class="right-card">
+                <h4>模型管理</h4>
+                <div class="config">
+                  <div class="row">
+                    <span class="pill">LLM</span>
+                    <span class="pill">Embedding</span>
+                    <span class="pill">Rerank</span>
+                    <span class="pill">OCR</span>
+                    <span class="pill">VL</span>
+                    <span class="pill">Parser</span>
+                  </div>
+                  <div class="block">
+                    <h4>模型路由</h4>
+                    <p>按节点自动选模型，支持默认、降级、停用、健康检查与调用统计。</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="right-card">
+                <h4>编排后台</h4>
+                <div class="module-grid">
+                  <div class="mini">
+                    <strong>流程编排</strong>
+                    <span>开始 / 解析 / 校验 / 输出</span>
+                  </div>
+                  <div class="mini">
+                    <strong>节点调试</strong>
+                    <span>单节点运行、全链路追踪</span>
+                  </div>
+                  <div class="mini">
+                    <strong>问答构建</strong>
+                    <span>知识库 + 检索策略 + 模型</span>
+                  </div>
+                  <div class="mini">
+                    <strong>应用广场</strong>
+                    <span>审核应用、问答应用、统一发布</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="right-card">
+                <h4>日志与监控</h4>
+                <p>用户可看自己的操作与任务日志，管理员可看全局日志、模型调用和服务健康。</p>
+              </div>
+
+              <div class="right-card">
+                <h4>智能体广场</h4>
+                <p>统一展示审核应用和知识问答应用，支持直接运行与版本发布。</p>
+              </div>
+
+              <button class="button primary">生成修改建议</button>
+            </div>
+          </aside>
+        </section>
+
+        <section class="page brief" id="page-brief">
+          <main class="brief-main">
+            <div class="brief-title">
+              <h2>技术选型与难点说明</h2>
+              <p>一页讲清：我们怎么做、为什么这么选、怎么解决难点。</p>
+            </div>
+
+            <div class="brief-grid">
+              <div class="brief-card">
+                <h4>推荐技术栈</h4>
+                <ul>
+                  <li>前端：React + TypeScript + React Flow</li>
+                  <li>后端：Python FastAPI</li>
+                  <li>任务：Redis + Celery</li>
+                  <li>存储：PostgreSQL + 磁盘 / NAS</li>
+                  <li>检索：pgvector，后续可替换专业向量库</li>
+                  <li>模型：统一模型网关接入 LLM / OCR / VL / Embedding / Rerank / Parser</li>
+                </ul>
+              </div>
+              <div class="brief-card">
+                <h4>版本策略</h4>
+                <ul>
+                  <li>演示版：模板管理 + 指标管理 + 知识录入 + 图谱审核 + 校验 + 报告</li>
+                  <li>最终版：补齐日志、监控、模型、编排、问答、广场、权限、审计</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="brief-flow">
+              <div class="fline d1"></div>
+              <div class="fline d2"></div>
+              <div class="fline d3"></div>
+              <div class="fline d4"></div>
+              <div class="fnode start"><b>入口</b><small>文件 + 模板 + 知识库</small></div>
+              <div class="fnode mid1"><b>结构解析</b><small>标题树、字号、表格、页眉页脚</small></div>
+              <div class="fnode mid2"><b>指标约束</b><small>必填 / 选填 / 条件必填</small></div>
+              <div class="fnode mid3"><b>规则判定</b><small>硬规则 + 软规则 + 人工复核</small></div>
+              <div class="fnode end"><b>输出结果</b><small>问题、依据、原因、建议、Trace</small></div>
+            </div>
+
+            <div class="brief-grid" style="margin-top: 14px;">
+              <div class="brief-card">
+                <h4>怎么克服难点</h4>
+                <ul>
+                  <li>不让模型直接拍板，用规则引擎做最终判定</li>
+                  <li>模板不直接转图谱，先转指标，再生成候选图谱</li>
+                  <li>知识库录入保留证据链、chunk、审核版本，避免无依据</li>
+                  <li>编排与应用分离，前端用画布复用，执行层自己掌控</li>
+                </ul>
+              </div>
+              <div class="brief-card">
+                <h4>为什么能落地</h4>
+                <ul>
+                  <li>先做单文档校验闭环，避免一开始范围过大</li>
+                  <li>文件先落磁盘/NAS，简化首期交付</li>
+                  <li>模型与业务解耦，便于后续替换和路由</li>
+                  <li>日志、监控、审计统一打通，便于运维</li>
+                </ul>
+              </div>
+            </div>
+          </main>
+
+          <aside class="brief-side">
+            <div class="panel-h"><h3>一句话结论</h3><small>用于汇报</small></div>
+            <div class="panel-b">
+              <div class="method-list">
+                <div class="method">
+                  <b>产品定位</b>
+                  <p>做一个面向软件说明文档的模板约束驱动平台，先完成校验闭环，再平台化扩展。</p>
+                </div>
+                <div class="method">
+                  <b>核心能力</b>
+                  <p>模板管理、指标管理、知识库治理、图谱审核、文档校验、模型管理、日志监控、智能体广场。</p>
+                </div>
+                <div class="method">
+                  <b>技术原则</b>
+                  <p>模型负责识别，规则负责判定，人工负责审核，平台负责留痕与分发。</p>
+                </div>
+              </div>
+
+              <div class="section-title tight" style="margin-top:16px;">选型关键词</div>
+              <div class="toggles">
+                <span class="pill">React Flow</span>
+                <span class="pill">FastAPI</span>
+                <span class="pill">Celery</span>
+                <span class="pill">PostgreSQL</span>
+                <span class="pill">pgvector</span>
+                <span class="pill">NAS</span>
+                <span class="pill">模型网关</span>
+                <span class="pill">规则引擎</span>
+              </div>
+
+              <div class="kv" style="margin-top:14px;">
+                <div class="row">
+                  <strong>难点 1</strong>
+                  <span>模板如何生成可执行指标和候选图谱，而不是直接把文档丢给模型。</span>
+                </div>
+                <div class="row">
+                  <strong>难点 2</strong>
+                  <span>文档如何稳定解析成结构树，再把结构树映射到指标和规则。</span>
+                </div>
+                <div class="row">
+                  <strong>难点 3</strong>
+                  <span>模型、日志、监控、广场和编排如何统一成一个可运营的平台。</span>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      const pages = {
+        system: document.querySelector('#page-system'),
+        brief: document.querySelector('#page-brief'),
+      };
+      document.querySelectorAll('.tab[data-page]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab[data-page]').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          Object.values(pages).forEach(p => p.classList.remove('active'));
+          pages[btn.dataset.page].classList.add('active');
+        });
+      });
+
+      const nodeText = {
+        start: ['开始节点', '上传文件 / 选择模板 / 绑定知识库'],
+        parse: ['文档解析', 'Word / PDF / OCR / 标题树 / 表格结构'],
+        indicator: ['指标装载', '结构、样式、内容、条件必填、术语'],
+        review: ['人工确认', '低置信结果转人工复核'],
+        validate: ['规则校验', '哪里错了、为什么错了、依据是什么'],
+        report: ['报告生成', '审查报告、修改建议、Trace'],
+        kb: ['知识库治理', '模板、指标、图谱、chunk、证据链'],
+        models: ['模型管理', 'LLM、embedding、rerank、OCR、VL、parser'],
+        logs: ['日志中心', '用户日志、任务日志、模型日志、服务健康'],
+        monitor: ['监控中心', '服务、任务、模型、告警、健康检查'],
+        square: ['智能体广场', '审核应用、问答应用、统一运行入口'],
+        ops: ['权限与审计', '版本、发布、回滚、细粒度权限'],
+        // Keep the orchestration explanation visible in the hero text.
+        startExplain: ['编排怎么做', 'React Flow 负责画流程，FastAPI + Celery 负责执行 DSL 与异步任务'],
+      };
+      document.querySelectorAll('.node[data-node]').forEach(node => {
+        node.addEventListener('click', () => {
+          document.querySelectorAll('.node[data-node]').forEach(n => n.classList.remove('selected'));
+          node.classList.add('selected');
+          const [title, desc] = nodeText[node.dataset.node];
+          document.querySelector('.hero h2').textContent = title;
+          document.querySelector('.hero p').textContent = desc;
+          const detail = document.querySelector('.node-detail p');
+          if (detail && node.dataset.node === 'start') {
+            detail.textContent = '我们采用固定业务节点而不是通用自由编排：前端用 React Flow 负责画流程和配置，后端用 FastAPI + Celery 执行 DSL、调度模型、回写证据链，保证流程可控、可审、可回放。';
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
