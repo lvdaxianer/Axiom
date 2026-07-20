@@ -1,0 +1,11 @@
+1. Vector host config path:
+   {{ .Values.hostPaths.vectorRoot }}/config/vector.toml
+
+2. Vector host data path:
+   {{ .Values.hostPaths.vectorRoot }}/data
+
+3. Check pod logs:
+   kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "vector-topo-sync.fullname" . }} -f
+
+4. Restart after changing host config:
+   kubectl rollout restart deployment/{{ include "vector-topo-sync.fullname" . }} -n {{ .Release.Namespace }}

@@ -260,6 +260,264 @@ journalctl -u vector -f
 journalctl -u vector -n 200 --no-pager
 ```
 
+## 5. 方案二：Docker 镜像 + Helm 部署到 Kubernetes
+
+### 5.1 适用场景
+
+适合现场环境通过私有仓库统一发版，并且希望在 Kubernetes 中运行 Vector，同时把运行配置和 checkpoint 数据持久化到宿主机的场景。
+
+本方案默认：
+
+- 命名空间：`uino`
+- 宿主机持久化目录：`/data/uinnova/apps/vector`
+- 宿主机 Nginx 日志文件：`/data/uinnova/apps/nginx/logs/sync_topo.log`
+
+目录约定：
+
+```text
+/data/uinnova/apps/vector
+├── config
+│   └── vector.toml
+└── data
+```
+
+### 5.2 镜像结构
+
+仓库新增了以下交付物：
+
+- 容器目录：`Nginx日志触发拓扑图资源同步/container`
+- Helm Chart：`Nginx日志触发拓扑图资源同步/chart/vector-topo-sync`
+
+镜像本身不把业务配置写死在镜像内，只做两件事：
+
+1. 首次启动时，如果宿主机 `/data/uinnova/apps/vector/config/vector.toml` 不存在，就从 Chart 下发的默认模板复制一份到宿主机。
+2. 之后始终以宿主机上的 `vector.toml` 启动，便于现场直接修改配置。
+
+### 5.3 构建并推送到私有仓库
+
+示例：
+
+```bash
+cd Nginx日志触发拓扑图资源同步/container
+
+docker build \
+  --platform linux/arm64 \
+  -t registry.example.com/uino/vector-topo-sync:0.33.1 \
+  .
+
+docker push registry.example.com/uino/vector-topo-sync:0.33.1
+```
+
+说明：
+
+- `vector-topo-sync:0.33.1` 是正式建议推送到私有仓库的镜像 tag。
+- `vector-topo-sync:0.33.1-test` 只是开发验证阶段在测试机上临时使用的本地 tag，不是最终交付名称。
+- 当前 Dockerfile 会在构建镜像阶段下载 Vector 官方二进制，因此镜像应在可联网的构建环境中生成，然后推送到客户私有仓库。
+- 客户现场如果是离线环境，Pod 启动时不会再下载任何外网资源；运行时只会做本地目录创建、默认配置复制和 Vector 进程启动。
+
+如果私有仓库需要先登录：
+
+```bash
+docker login registry.example.com
+```
+
+### 5.4 准备宿主机目录
+
+在 Kubernetes 节点上执行：
+
+```bash
+mkdir -p /data/uinnova/apps/vector/config
+mkdir -p /data/uinnova/apps/vector/data
+mkdir -p /data/uinnova/apps/nginx/logs
+touch /data/uinnova/apps/nginx/logs/sync_topo.log
+```
+
+如果你希望先手工准备配置文件，也可以直接放置：
+
+```bash
+vi /data/uinnova/apps/vector/config/vector.toml
+```
+
+如果不手工创建，Pod 首次启动时会自动生成一份默认配置。
+
+离线环境说明：
+
+- 客户环境离线时，只需要保证 Kubernetes 节点能够从私有仓库拉取已经构建好的镜像。
+- 容器启动时不会执行 `curl`、`apt-get`、`apk add` 等下载动作。
+- 启动流程只有三步：挂载宿主机目录、必要时生成 `/data/uinnova/apps/vector/config/vector.toml`、执行 `vector --config`。
+
+### 5.5 使用 Helm 安装
+
+示例安装命令：
+
+```bash
+helm upgrade --install vector-topo-sync \
+  ./Nginx日志触发拓扑图资源同步/chart/vector-topo-sync \
+  -n uino \
+  --create-namespace \
+  --set image.repository=registry.example.com/uino/vector-topo-sync \
+  --set image.tag=0.33.1 \
+  --set vector.sink.uri=http://10.100.30.239:8180/projectScene/offlineTopo/sync
+```
+
+如果私有仓库需要 `imagePullSecrets`：
+
+```bash
+helm upgrade --install vector-topo-sync \
+  ./Nginx日志触发拓扑图资源同步/chart/vector-topo-sync \
+  -n uino \
+  --create-namespace \
+  --set image.repository=registry.example.com/uino/vector-topo-sync \
+  --set image.tag=0.33.1 \
+  --set image.pullSecrets[0]=registry-secret \
+  --set vector.sink.uri=http://10.100.30.239:8180/projectScene/offlineTopo/sync
+```
+
+### 5.5.1 现场最终命令
+
+下面这组命令是当前确认后的现场执行版本，默认宿主机持久化目录为 `/data/uinnova/apps/vector`。
+
+1. 准备宿主机目录：
+
+```bash
+mkdir -p /data/uinnova/apps/vector/config
+mkdir -p /data/uinnova/apps/vector/data
+mkdir -p /data/uinnova/apps/nginx/logs
+touch /data/uinnova/apps/nginx/logs/sync_topo.log
+```
+
+2. 构建并推送 ARM64 镜像到私有仓库：
+
+```bash
+cd Nginx日志触发拓扑图资源同步/container
+
+docker build \
+  --platform linux/arm64 \
+  -t registry.example.com/uino/vector-topo-sync:0.33.1 \
+  .
+
+docker push registry.example.com/uino/vector-topo-sync:0.33.1
+```
+
+3. 安装或升级 Helm 发布：
+
+```bash
+helm upgrade --install vector-topo-sync \
+  ./Nginx日志触发拓扑图资源同步/chart/vector-topo-sync \
+  -n uino \
+  --create-namespace \
+  --set image.repository=registry.example.com/uino/vector-topo-sync \
+  --set image.tag=0.33.1 \
+  --set vector.sink.uri=http://10.100.30.239:8180/projectScene/offlineTopo/sync
+```
+
+4. 如果私有仓库需要拉取密钥，先创建 secret：
+
+```bash
+kubectl create secret docker-registry registry-secret \
+  -n uino \
+  --docker-server=registry.example.com \
+  --docker-username='<用户名>' \
+  --docker-password='<密码>' \
+  --docker-email='<邮箱>'
+```
+
+5. 带私有仓库拉取密钥的 Helm 安装命令：
+
+```bash
+helm upgrade --install vector-topo-sync \
+  ./Nginx日志触发拓扑图资源同步/chart/vector-topo-sync \
+  -n uino \
+  --create-namespace \
+  --set image.repository=registry.example.com/uino/vector-topo-sync \
+  --set image.tag=0.33.1 \
+  --set image.pullSecrets[0]=registry-secret \
+  --set vector.sink.uri=http://10.100.30.239:8180/projectScene/offlineTopo/sync
+```
+
+### 5.6 配置暴露与持久化说明
+
+该 Chart 会把以下路径挂载到 Pod：
+
+- `/data/uinnova/apps/vector` -> 容器内 `/host-vector`
+- `/data/uinnova/apps/nginx/logs/sync_topo.log` -> 容器内 `/host-nginx-log/input.log`
+
+默认模板生成后的实际配置文件位置是：
+
+```bash
+/data/uinnova/apps/vector/config/vector.toml
+```
+
+运行中的 checkpoint、磁盘 buffer 数据位于：
+
+```bash
+/data/uinnova/apps/vector/data
+```
+
+如果你希望像 `217` 环境那样继续沿用“从 `request_body.diagramId` 提取值、再发送 `{"topoId":"..."}`”这套逻辑，默认 values 已经保持一致；只是容器化场景下默认监听的共享日志文件改成了 `/data/uinnova/apps/nginx/logs/sync_topo.log`。
+
+如果现场要改监听规则或请求映射，直接调整以下 values 即可：
+
+- `hostPaths.nginxLogFile`：宿主机上的完整日志文件路径，必须包含文件名
+- `vector.source.requestMethod`：只匹配哪种入口请求方法
+- `vector.source.requestPath`：只匹配哪个入口 URI
+- `vector.source.successStatus.min` / `vector.source.successStatus.max`：只接收哪段状态码
+- `vector.extract.requestBodyField`：从 `request_body` 里提取哪个字段，例如 `diagramId`
+- `vector.extract.targetField`：发送给下游时 JSON body 使用哪个字段名，例如 `topoId`
+- `vector.sink.method`：发给下游时使用什么 HTTP method
+- `vector.sink.uri`：发给哪个下游地址
+
+例如，下面这组默认值就对应当前 `217` 环境的行为：
+
+```yaml
+vector:
+  source:
+    requestMethod: POST
+    requestPath: /thing-api/topo/eam/esDiagram/saveOrUpdateDiagramComponent
+    successStatus:
+      min: 200
+      max: 299
+hostPaths:
+  nginxLogFile: /data/uinnova/apps/nginx/logs/sync_topo.log
+  extract:
+    requestBodyField: diagramId
+    targetField: topoId
+  sink:
+    method: post
+    uri: http://10.100.30.239:8180/projectScene/offlineTopo/sync
+```
+
+如果现场修改了宿主机配置文件，执行一次重启即可：
+
+```bash
+kubectl rollout restart deployment/vector-topo-sync -n uino
+```
+
+### 5.7 查看运行日志
+
+查看 Pod 日志：
+
+```bash
+kubectl logs -n uino deploy/vector-topo-sync -f
+```
+
+查看渲染结果是否正确：
+
+```bash
+helm template vector-topo-sync \
+  ./Nginx日志触发拓扑图资源同步/chart/vector-topo-sync
+```
+
+### 5.8 ARM64 / 麒麟现场说明
+
+现场主机如果是 ARM64 架构，例如麒麟 V10 ARM 服务器，构建镜像时请明确指定：
+
+```bash
+--platform linux/arm64
+```
+
+只要现场 Kubernetes 节点可拉取该 ARM64 镜像，这套 Chart 不依赖发行版特性，麒麟 V10 与 Ubuntu ARM64 场景都可以使用。
+
 临时前台调试时使用：
 
 ```bash

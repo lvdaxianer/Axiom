@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vector-topo-sync.fullname" . }}-bootstrap-config
+  labels:
+    {{- include "vector-topo-sync.labels" . | nindent 4 }}
+data:
+  vector.toml: |
+    data_dir = "/host-vector/data"
+
+    [sources.topo_nginx_log]
+    type = "file"
+    include = ["/host-nginx-log/input.log"]
+    read_from = "end"
+
+    [transforms.parse_nginx_log]
+    type = "remap"
+    inputs = ["topo_nginx_log"]
+    source = '''
+    . = parse_json!(.message)
+    '''
+
+    [transforms.extract_topo_event]
+    type = "remap"
+    inputs = ["parse_nginx_log"]
+    source = '''
+    method = string(.method) ?? ""
+    uri = string(.uri) ?? ""
+    status = to_int(.status) ?? 0
+    request_body = string(.request_body) ?? ""
+
+    body = parse_json(request_body) ?? {}
+    topo_id = string(body.{{ .Values.vector.extract.requestBodyField }}) ?? ""
+
+    .method_text = method
+    .uri_text = uri
+    .status_code = status
+    .topo_id = topo_id
+
+    .is_valid_topo_save = method == "{{ .Values.vector.source.requestMethod }}" &&
+      ends_with(uri, "{{ .Values.vector.source.requestPath }}") &&
+      status >= {{ .Values.vector.source.successStatus.min }} &&
+      status <= {{ .Values.vector.source.successStatus.max }} &&
+      topo_id != ""
+    '''
+
+    [transforms.only_valid_topo_save]
+    type = "filter"
+    inputs = ["extract_topo_event"]
+    condition = '''
+    bool(.is_valid_topo_save) ?? false
+    '''
+
+    [transforms.prepare_listener_event]
+    type = "remap"
+    inputs = ["only_valid_topo_save"]
+    source = '''
+    topo_id = string!(.topo_id)
+    . = {}
+    .message = "{\"{{ .Values.vector.extract.targetField }}\":\"" + topo_id + "\"}"
+    .{{ .Values.vector.extract.targetField }} = topo_id
+    '''
+
+    [sinks.debug_matched_events]
+    type = "console"
+    inputs = ["prepare_listener_event"]
+    encoding.codec = "json"
+
+    [sinks.topo_listener]
+    type = "http"
+    inputs = ["prepare_listener_event"]
+    uri = "{{ .Values.vector.sink.uri }}"
+    method = "{{ .Values.vector.sink.method }}"
+
+    [sinks.topo_listener.headers]
+    Content-Type = "application/json"
+
+    [sinks.topo_listener.healthcheck]
+    enabled = false
+
+    [sinks.topo_listener.encoding]
+    codec = "text"
+
+    [sinks.topo_listener.batch]
+    max_events = 1
+    timeout_secs = 1
+
+    [sinks.topo_listener.buffer]
+    type = "disk"
+    max_size = 268435488
+    when_full = "block"
