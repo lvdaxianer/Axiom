@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "uino-elasticsearch.headlessServiceName" . }}
+  labels:
+    {{- include "uino-elasticsearch.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "uino-elasticsearch.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 9200
+      targetPort: http
+    - name: transport
+      port: 9300
+      targetPort: transport

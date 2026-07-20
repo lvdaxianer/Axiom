@@ -1,0 +1,11 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "uino-elasticsearch.fullname" . }}
+  labels:
+    {{- include "uino-elasticsearch.labels" . | nindent 4 }}
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      {{- include "uino-elasticsearch.selectorLabels" . | nindent 6 }}

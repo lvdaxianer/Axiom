@@ -1,0 +1,33 @@
+image:
+  repository: ""
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+environment:
+  loadBalancerIP: ""
+
+snapshot:
+  enabled: false
+  server: ""
+  path: ""
+
+security:
+  existingCredentialsSecret: ""
+
+tls:
+  existingSecret: ""
+
+heap: -Xms4g -Xmx4g
+
+nodeSelector:
+  kubernetes.io/arch: arm64
+
+resources:
+  requests:
+    cpu: "2"
+    memory: 8Gi
+  limits:
+    cpu: "4"
+    memory: 8Gi

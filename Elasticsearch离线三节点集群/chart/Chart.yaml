@@ -1,0 +1,6 @@
+apiVersion: v2
+name: uino-elasticsearch
+description: Offline three-node Elasticsearch 7.10.2 ARM64 cluster
+type: application
+version: 0.1.0
+appVersion: "7.10.2"

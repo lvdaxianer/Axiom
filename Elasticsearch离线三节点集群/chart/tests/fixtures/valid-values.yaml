@@ -1,0 +1,13 @@
+image:
+  repository: registry.internal.example/uino/elasticsearch
+  tag: 7.10.2-arm64-hardened
+  digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+  pullSecrets:
+    - name: registry-credentials
+
+environment:
+  loadBalancerIP: 192.0.2.50
+
+snapshot:
+  server: 192.0.2.60
+  path: /exports/es-snapshots

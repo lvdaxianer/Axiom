@@ -1,0 +1,180 @@
+{{- include "uino-elasticsearch.validateHeap" . -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "uino-elasticsearch.fullname" . }}
+  labels:
+    {{- include "uino-elasticsearch.labels" . | nindent 4 }}
+spec:
+  replicas: 3
+  serviceName: {{ include "uino-elasticsearch.headlessServiceName" . }}
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "uino-elasticsearch.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "uino-elasticsearch.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      terminationGracePeriodSeconds: 120
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  {{- include "uino-elasticsearch.selectorLabels" . | nindent 18 }}
+              topologyKey: kubernetes.io/hostname
+      initContainers:
+        - name: prepare
+          image: {{ include "uino-elasticsearch.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          command: ["/bin/bash", "-ec"]
+          args:
+            - |
+              [[ "${POD_NAME}" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || {
+                echo "invalid POD_NAME" >&2
+                exit 1
+              }
+              node_dir="/mnt/es-data/${POD_NAME}"
+              [[ ! -L "${node_dir}" ]] || {
+                echo "refusing symlinked data directory" >&2
+                exit 1
+              }
+              mkdir -p -- "${node_dir}"
+              [[ -d "${node_dir}" && -w "${node_dir}" ]] || {
+                echo "POD_NAME data directory is not writable" >&2
+                exit 1
+              }
+
+              cp -R /usr/share/elasticsearch/config/. /config-runtime/
+              cp /config-source/elasticsearch.yml /config-runtime/elasticsearch.yml
+              if ! compgen -G "${node_dir}/nodes/0/_state/global-*.st" >/dev/null && \
+                 ! compgen -G "${node_dir}/nodes/0/_state/manifest-*.st" >/dev/null; then
+                printf '\ncluster.initial_master_nodes: ["%s-0", "%s-1", "%s-2"]\n' \
+                  "${STATEFULSET_NAME}" "${STATEFULSET_NAME}" "${STATEFULSET_NAME}" \
+                  >> /config-runtime/elasticsearch.yml
+              fi
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: STATEFULSET_NAME
+              value: {{ include "uino-elasticsearch.fullname" . }}
+          volumeMounts:
+            - name: data
+              mountPath: /mnt/es-data
+            - name: config-source
+              mountPath: /config-source
+              readOnly: true
+            - name: config-runtime
+              mountPath: /config-runtime
+      containers:
+        - name: elasticsearch
+          image: {{ include "uino-elasticsearch.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 9200
+            - name: transport
+              containerPort: 9300
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: node.name
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: node.roles
+              value: master,data,ingest
+            - name: discovery.seed_hosts
+              value: {{ include "uino-elasticsearch.headlessServiceName" . }}
+            - name: ES_JAVA_OPTS
+              value: {{ .Values.heap | quote }}
+            - name: xpack.security.enabled
+              value: "true"
+            - name: xpack.security.transport.ssl.enabled
+              value: "true"
+            - name: xpack.security.http.ssl.enabled
+              value: "true"
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "uino-elasticsearch.credentialsSecretName" . }}
+                  key: elastic-password
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/elasticsearch/data
+              subPathExpr: $(POD_NAME)
+            - name: config-runtime
+              mountPath: /usr/share/elasticsearch/config
+            - name: tls
+              mountPath: /usr/share/elasticsearch/config/certs
+              readOnly: true
+          startupProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -ec
+                - curl --silent --show-error --fail --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:${ELASTIC_PASSWORD}" https://127.0.0.1:9200/
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -ec
+                - curl --silent --show-error --fail --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=1s"
+            periodSeconds: 10
+            timeoutSeconds: 8
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -ec
+                - curl --silent --show-error --fail --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:${ELASTIC_PASSWORD}" https://127.0.0.1:9200/
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 8
+            failureThreshold: 3
+      volumes:
+        - name: data
+          hostPath:
+            path: /data/uinnova/apps/es
+            type: Directory
+        - name: config-source
+          configMap:
+            name: {{ include "uino-elasticsearch.fullname" . }}-config
+        - name: config-runtime
+          emptyDir: {}
+        - name: tls
+          secret:
+            secretName: {{ include "uino-elasticsearch.tlsSecretName" . }}
+            defaultMode: 0440
