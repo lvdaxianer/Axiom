@@ -18,6 +18,7 @@ setup() {
   CHART_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   FIXTURE="$BATS_TEST_DIRNAME/fixtures/valid-values.yaml"
   ASSERT_RENDER="$BATS_TEST_DIRNAME/assert_render.py"
+  ASSERT_ACCESS="$BATS_TEST_DIRNAME/assert_access.py"
   RENDERED="$BATS_TEST_TMPDIR/rendered.yaml"
   ADDITIVE_RENDERED="$BATS_TEST_TMPDIR/additive.yaml"
   CREDENTIALS_TEMPLATE="$CHART_DIR/templates/credentials-secret.yaml"
@@ -49,7 +50,7 @@ assert_invalid_value() {
   run helm template es-cluster "$CHART_DIR" -n uino
   [ "$status" -ne 0 ]
   [[ "$output" == *"/image"* && "$output" == *"digest"* ]]
-  [[ "$output" != *"loadBalancerIP"* && "$output" != *"/snapshot"* ]]
+  [[ "$output" == *"loadBalancerIP"* && "$output" != *"/snapshot"* ]]
 }
 
 # 前置：使用完整离线 fixture 作为有效基线。
@@ -63,7 +64,7 @@ assert_invalid_value() {
   # 镜像、网络与 Secret 外部输入必须经过严格约束。
   assert_invalid_value "image.tag=7.10.3-arm64" "image/tag"
   assert_invalid_value "image.digest=sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" "digest"
-  assert_invalid_value "environment.loadBalancerIP=999.999.999.999" "loadBalancerIP"
+  assert_invalid_value "service.loadBalancerIP=999.999.999.999" "loadBalancerIP"
   assert_invalid_value "image.pullSecrets[0].name=Bad_Name" "pullSecrets"
   assert_invalid_value "security.existingCredentialsSecret=Bad_Name" "existingCredentialsSecret"
   assert_invalid_value "tls.existingSecret=abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl" "existingSecret"
@@ -118,18 +119,18 @@ assert_invalid_value() {
   [ "$status" -eq 0 ]
 }
 
-# 前置：fixture 的 fixed IP 被显式覆盖为空字符串。
-# 目的：验证空地址不会污染生成证书 SAN。
-# 约束：127.0.0.1 和服务 DNS SAN 仍必须存在。
-# 约束：证书生成不得插入空或无效 IP 条目。
-# 失败：空 IP 若进入 SAN，X.509 解析断言将失败。
-# 范围：只检查 TLS Secret，不改变其他核心字段。
-# 结果：渲染成功且空 fixed IP 不出现在证书地址集合。
-@test "core cluster omits an empty fixed IP from TLS SAN" {
-  run render_fixture --set environment.loadBalancerIP=
+# 前置：fixture 仅在 service 下提供固定 IP。
+# 目的：确认 TLS SAN 与 HTTP Service 共用单一 IP 来源。
+# 约束：过渡期 environment.loadBalancerIP 不再被 fixture 提供。
+# 约束：证书必须包含固定 IP 和 HTTP Service DNS。
+# 失败：旧路径依赖会使证书缺失固定 IP。
+# 范围：通过核心结构化断言检查 TLS Secret。
+# 结果：渲染证书 SAN 应完整包含单一服务地址。
+@test "core cluster sources TLS SAN from the service fixed IP" {
+  run render_fixture
   [ "$status" -eq 0 ]
   printf '%s\n' "$output" > "$RENDERED"
-  run "$PYTHON_BIN" "$ASSERT_RENDER" empty-service-ip "$RENDERED"
+  run "$PYTHON_BIN" "$ASSERT_RENDER" tls-service-ip "$RENDERED"
   [ "$status" -eq 0 ]
 }
 
@@ -162,4 +163,114 @@ assert_invalid_value() {
   [ "$status" -eq 0 ]
   run grep -Eq 'fail.*tls.crt.*tls.key.*ca.crt' "$TLS_TEMPLATE"
   [ "$status" -eq 0 ]
+}
+
+# 前置：fixture 配置固定 IP、legacy MetalLB 契约和授权来源。
+# 目的：验证外部只暴露 HTTPS 9200，9300 仅供 ES Pod 互通。
+# 约束：Service 选择器必须精确匹配 ES Pod。
+# 约束：NetworkPolicy 的 HTTP 来源只能是授权 Pod 和 CIDR。
+# 失败：任一保留注解、端口或 peer 偏移都应结构化报错。
+# 范围：只解析 Helm 渲染的 Service 和 NetworkPolicy。
+# 结果：固定 IP 外部访问与集群内通信边界同时成立。
+@test "secure access renders fixed HTTPS and authorized ingress only" {
+  run render_fixture
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" > "$RENDERED"
+  run "$PYTHON_BIN" "$ASSERT_ACCESS" secure "$RENDERED"
+  [ "$status" -eq 0 ]
+}
+
+# 前置：fixture 配置外部来源 CIDR 和集群 DNS 选择器。
+# 目的：保留客户端源地址，并将 ES 出站限制为 transport 与 DNS。
+# 约束：Local 是 ipBlock 正确识别外部 CIDR 的必要条件。
+# 约束：出站只能访问同一 ES 选择器的 9300 和 DNS 的 TCP/UDP 53。
+# 失败：Cluster 策略、缺少 Egress 或任意宽泛出站都会触发结构化失败。
+# 范围：解析 Service 和 NetworkPolicy，不依赖 YAML 文本顺序。
+# 结果：来源控制和默认拒绝出站必须同时成立。
+@test "secure access preserves client source and isolates egress" {
+  run render_fixture
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" > "$RENDERED"
+  run "$PYTHON_BIN" "$ASSERT_ACCESS" secure "$RENDERED"
+  [ "$status" -eq 0 ]
+}
+
+# 前置：从有效 fixture 分别清空固定 IP 或覆盖非法网络值。
+# 目的：在渲染前拒绝动态 IP、非法 IPv4/CIDR 和空 peer 标签。
+# 约束：CIDR 前缀只能为 0..32，IP 八位组不能越界。
+# 约束：授权 namespace 与 pod 选择器都必须有有效标签。
+# 失败：Helm schema 必须指出对应 service 或 networkPolicy 字段。
+# 范围：每次仅替换一个输入，避免错误归因。
+# 结果：所有不安全输入都必须非零退出。
+@test "secure access rejects missing or invalid network inputs" {
+  assert_invalid_value "service.loadBalancerIP=" "loadBalancerIP"
+  assert_invalid_value "service.loadBalancerIP=999.1.1.1" "loadBalancerIP"
+  assert_invalid_value "service.loadBalancerSourceRanges[0]=198.51.100.0/33" "loadBalancerSourceRanges"
+  assert_invalid_value "networkPolicy.authorizedPeers[0].podSelector.matchLabels.app\\.kubernetes\\.io/name=" "matchLabels"
+}
+
+# 前置：fixture 默认使用批准的 first-pool 地址池。
+# 目的：确认客户不能将固定 IP 请求切换到其他 MetalLB 地址池。
+# 约束：地址池是已批准的部署边界，不是任意 DNS 标签配置。
+# 约束：只覆盖 addressPool，其他服务和网络策略输入保持有效。
+# 失败：second-pool 若能渲染，固定地址池契约即被绕过。
+# 范围：在 Helm schema 阶段验证，不依赖 YAML 文本匹配。
+# 结果：错误必须明确指向 addressPool 字段。
+@test "secure access requires the approved first address pool" {
+  assert_invalid_value "service.addressPool=second-pool" "addressPool"
+}
+
+# 前置：用户尝试通过自定义注解写入 MetalLB 保留键。
+# 目的：同时阻断 legacy 与 modern API 别名绕过固定配置。
+# 约束：两套地址池、固定 IP、协议和共享键别名均由 Chart 独占。
+# 约束：schema 必须在模板执行前拒绝保留键输入。
+# 失败：任一别名可渲染都会形成第二条配置来源。
+# 范围：分别覆盖 legacy 与 modern 地址池代表键。
+# 结果：两次渲染均应非零退出并指向 annotations。
+@test "secure access rejects legacy and modern reserved annotation aliases" {
+  run render_fixture --set-string 'service.annotations.metallb\.universe\.tf/address-pool=evil-pool'
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"invalid propertyName"* && "$output" == *"metallb.universe.tf/address-pool"* ]]
+
+  run render_fixture --set-string 'service.annotations.metallb\.io/address-pool=evil-pool'
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"invalid propertyName"* && "$output" == *"metallb.io/address-pool"* ]]
+}
+
+# 前置：用户提供不符合 Kubernetes qualified-name 的注解键。
+# 目的：避免生成 API Server 会拒绝的 Service metadata。
+# 约束：注解前缀必须是 DNS subdomain，名称必须是合法 qualified name。
+# 约束：合法 example.com/owner 注解仍由 secure 结构化测试覆盖。
+# 失败：带下划线的 DNS 前缀若通过，会把错误推迟到集群安装阶段。
+# 范围：只覆盖 service.annotations 的 propertyNames 校验。
+# 结果：schema 必须拒绝 bad_prefix/owner。
+@test "secure access rejects invalid custom annotation keys" {
+  run render_fixture --set-string 'service.annotations.bad_prefix/owner=platform'
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"invalid propertyName"* && "$output" == *"bad_prefix/owner"* ]]
+}
+
+# 前置：fixture 默认关闭共享 IP。
+# 目的：确认关闭时省略注解，启用时只渲染显式共享键。
+# 约束：客户自定义注解可合并，保留 MetalLB 键不可被覆盖。
+# 约束：共享键必须是 DNS-safe 名称，字面量 true 必须拒绝。
+# 失败：泛化 true 共享组或恶意保留注解都会破坏固定配置。
+# 范围：结构化断言注解映射，不依赖 YAML 文本顺序。
+# 结果：默认省略，显式开启渲染指定共享键。
+@test "secure access controls shared IP and reserved annotations" {
+  run render_fixture
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" > "$RENDERED"
+  run "$PYTHON_BIN" "$ASSERT_ACCESS" no-sharing "$RENDERED"
+  [ "$status" -eq 0 ]
+
+  run render_fixture --set service.allowSharedIP=true --set service.sharedIPKey=es-http-shared
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" > "$RENDERED"
+  run "$PYTHON_BIN" "$ASSERT_ACCESS" shared "$RENDERED"
+  [ "$status" -eq 0 ]
+
+  run render_fixture --set service.allowSharedIP=true --set-string service.sharedIPKey=true
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"sharedIPKey"* ]]
 }

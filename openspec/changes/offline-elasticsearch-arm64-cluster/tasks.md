@@ -37,7 +37,7 @@ Implementation sequence:
 
 ## 2. MetalLB 固定 IP 与网络访问控制
 
-- [ ] 2.1 以测试先行方式实现固定 IP LoadBalancer Service、MetalLB legacy annotations、来源 CIDR、可选共享键和只允许授权流量的 NetworkPolicy
+- [x] 2.1 以测试先行方式实现固定 IP LoadBalancer Service、MetalLB legacy annotations、来源 CIDR、可选共享键和只允许授权流量的 NetworkPolicy
 
 **Task boundary and agent dispatch**
 
@@ -45,7 +45,7 @@ Implementation sequence:
 | --- | --- |
 | Module agent | `elasticsearch-access-agent` |
 | Owned responsibility | 实现外部 HTTPS `9200` 固定 IP 暴露和 Pod 网络访问边界 |
-| Allowed files | `Elasticsearch离线三节点集群/chart/values.yaml`, `values.schema.json`, `templates/http-service.yaml`, `templates/networkpolicy.yaml`, `tests/render_test.bats`, `tests/assert_render.py`, `tests/fixtures/valid-values.yaml` |
+| Allowed files | `Elasticsearch离线三节点集群/chart/values.yaml`, `values.schema.json`, `templates/http-service.yaml`, `templates/networkpolicy.yaml`, `templates/tls-secret.yaml`, `tests/render_test.bats`, `tests/assert_common.py`, `tests/assert_render.py`, `tests/assert_access.py`, `tests/fixtures/valid-values.yaml` |
 | Out of scope | StatefulSet 数据与启动逻辑、Secret 内容、快照、README、远程镜像、OpenSpec 规格 |
 | Dependencies | Task 1.1 已提交 |
 | Focused verification | `bats Elasticsearch离线三节点集群/chart/tests/render_test.bats --filter 'secure access'` |

@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "uino-elasticsearch.fullname" . }}
+  labels:
+    {{- include "uino-elasticsearch.labels" . | nindent 4 }}
+  annotations:
+    {{- /* 两代 MetalLB 保留键只由 Chart 渲染，模板层继续防御 schema 绕过。 */}}
+    {{- range $key, $value := .Values.service.annotations }}
+    {{- if not (has $key (list "metallb.universe.tf/address-pool" "metallb.universe.tf/loadBalancerIPs" "metallb.universe.tf/protocol" "metallb.universe.tf/allow-shared-ip" "metallb.io/address-pool" "metallb.io/loadBalancerIPs" "metallb.io/protocol" "metallb.io/allow-shared-ip")) }}
+    {{ $key | quote }}: {{ $value | quote }}
+    {{- end }}
+    {{- end }}
+    metallb.universe.tf/address-pool: {{ .Values.service.addressPool | quote }}
+    metallb.universe.tf/loadBalancerIPs: {{ .Values.service.loadBalancerIP | quote }}
+    metallb.universe.tf/protocol: {{ .Values.service.protocol | quote }}
+    {{- if .Values.service.allowSharedIP }}
+    metallb.universe.tf/allow-shared-ip: {{ .Values.service.sharedIPKey | quote }}
+    {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  loadBalancerIP: {{ .Values.service.loadBalancerIP | quote }}
+  # Local 保留外部客户端源地址，使 NetworkPolicy ipBlock 可按 CIDR 判断。
+  externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy }}
+  loadBalancerSourceRanges:
+    {{- toYaml .Values.service.loadBalancerSourceRanges | nindent 4 }}
+  selector:
+    {{- include "uino-elasticsearch.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      protocol: TCP
+      port: {{ .Values.service.port }}
+      targetPort: http

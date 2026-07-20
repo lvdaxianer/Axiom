@@ -49,9 +49,11 @@ transport TLS 使用共享证书并按证书链验证；HTTP TLS 证书包含固
 
 ### 使用 MetalLB LoadBalancer 暴露固定 HTTPS 地址
 
-HTTP Service 类型固定为 `LoadBalancer`，兼容客户现有 `metallb.universe.tf/*` 注解，通过 `first-pool` 绑定 `service.loadBalancerIP`。`loadBalancerSourceRanges` 与 NetworkPolicy 共同限制授权来源。`9300` 仅在 Headless Service 和 ES Pod 之间开放。
+HTTP Service 类型固定为 `LoadBalancer`，兼容客户现有 `metallb.universe.tf/*` 注解，通过 `first-pool` 绑定 `service.loadBalancerIP`。`externalTrafficPolicy` 固定为 `Local`，让 Pod 侧 NetworkPolicy 能按原始客户端 CIDR 执行授权；三个 Worker 均有一个本地 Elasticsearch endpoint。`loadBalancerSourceRanges` 与 NetworkPolicy 共同限制授权来源。`9300` 仅在 Headless Service 和 ES Pod 之间开放。
 
 `allow-shared-ip` 默认关闭；启用时使用显式共享键，不以 `"true"` 作为通用共享组。额外注解由 `service.annotations` 合并。
+
+NetworkPolicy 同时隔离 ingress 和 egress。出站只允许 Elasticsearch 节点间 TLS `9300` 以及集群 DNS 的 TCP/UDP `53`，禁止 Elasticsearch Pod 直接访问公网。
 
 ### 使用 ARM64 加固镜像并固定 digest
 

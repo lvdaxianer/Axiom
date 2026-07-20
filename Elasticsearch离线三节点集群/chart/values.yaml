@@ -5,8 +5,35 @@ image:
   pullPolicy: IfNotPresent
   pullSecrets: []
 
-environment:
+service:
+  type: LoadBalancer
+  port: 9200
   loadBalancerIP: ""
+  addressPool: first-pool
+  protocol: layer2
+  externalTrafficPolicy: Local
+  loadBalancerSourceRanges: []
+  allowSharedIP: false
+  sharedIPKey: ""
+  annotations: {}
+
+# HTTP 客户（包括未来快照 Job）必须同时匹配 namespace 和 pod 标签。
+networkPolicy:
+  # DNS 出站仅允许匹配集群 DNS 的 namespace 与 pod，禁止通用互联网出站。
+  dns:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: kube-system
+    podSelector:
+      matchLabels:
+        k8s-app: kube-dns
+  authorizedPeers:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uino
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: elasticsearch-client
 
 snapshot:
   enabled: false

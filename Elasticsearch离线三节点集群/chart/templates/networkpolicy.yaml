@@ -1,0 +1,60 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "uino-elasticsearch.fullname" . }}
+  labels:
+    {{- include "uino-elasticsearch.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "uino-elasticsearch.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # transport 只允许同一 Elasticsearch release 的 Pod 互访。
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "uino-elasticsearch.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 9300
+    - from:
+        {{- range .Values.networkPolicy.authorizedPeers }}
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .namespaceSelector.matchLabels | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .podSelector.matchLabels | nindent 14 }}
+        {{- end }}
+        {{- range .Values.service.loadBalancerSourceRanges }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+  egress:
+    # ES 节点出站仅保留同一 release 的 TLS transport 通信。
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "uino-elasticsearch.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 9300
+    # DNS 仅允许 schema 校验后的集群 DNS namespace 与 pod 交集。
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dns.namespaceSelector.matchLabels | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dns.podSelector.matchLabels | nindent 14 }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

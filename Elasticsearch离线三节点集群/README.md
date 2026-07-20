@@ -194,7 +194,7 @@ service:
   loadBalancerIP: "<客户保留的固定 IP>"
   addressPool: first-pool
   protocol: layer2
-  externalTrafficPolicy: Cluster
+  externalTrafficPolicy: Local
   loadBalancerSourceRanges: []
   allowSharedIP: false
   sharedIPKey: uino-es-cluster
@@ -219,6 +219,8 @@ metallb.universe.tf/allow-shared-ip: uino-es-cluster
 `allow-shared-ip` 的值是共享分组键，不使用宽泛的 `"true"` 作为默认值，避免无关 Service 意外加入同一共享组。额外的客户注解可通过 `service.annotations` 合并。
 
 固定 IP 必须由客户提前从 `first-pool` 中保留并确认无冲突。外部只开放带 TLS 和认证的 `9200`；`9300` 仅允许 Elasticsearch Pod 之间通过 Headless Service 访问。
+
+`externalTrafficPolicy: Local` 用于保留外部客户端源 IP，使 NetworkPolicy 的 CIDR 规则可预测生效。三个 Elasticsearch Pod 强制分布到不同 Worker，每个 Worker 都有本地 endpoint。NetworkPolicy 同时限制出站，只允许节点间 `9300` 和集群 DNS 的 TCP/UDP `53`，不允许 Elasticsearch Pod 直接访问公网。
 
 ## 健康检查与升级
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "security", "tls", "heap", "resources", "nodeSelector"],
+  "required": ["image", "service", "networkPolicy", "security", "tls", "heap", "resources", "nodeSelector"],
   "properties": {
     "image": {
       "type": "object",
@@ -40,16 +40,97 @@
         }
       }
     },
-    "environment": {
+    "service": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["type", "port", "loadBalancerIP", "addressPool", "protocol", "externalTrafficPolicy", "loadBalancerSourceRanges", "allowSharedIP", "sharedIPKey", "annotations"],
       "properties": {
+        "type": {"type": "string", "const": "LoadBalancer"},
+        "port": {"type": "integer", "const": 9200},
         "loadBalancerIP": {
           "type": "string",
-          "oneOf": [
-            {"const": ""},
-            {"pattern": "^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$"}
-          ]
+          "minLength": 7,
+          "pattern": "^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$"
+        },
+        "addressPool": {"type": "string", "const": "first-pool"},
+        "protocol": {"type": "string", "const": "layer2"},
+        "externalTrafficPolicy": {"type": "string", "const": "Local"},
+        "loadBalancerSourceRanges": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])/([0-9]|[12][0-9]|3[0-2])$"
+          }
+        },
+        "allowSharedIP": {"type": "boolean"},
+        "sharedIPKey": {
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$",
+          "not": {"const": "true"}
+        },
+        "annotations": {
+          "type": "object",
+          "propertyNames": {
+            "allOf": [
+              {
+                "maxLength": 317,
+                "pattern": "^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*/)?[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$"
+              },
+              {
+                "not": {
+                  "enum": [
+                    "metallb.universe.tf/address-pool",
+                    "metallb.universe.tf/loadBalancerIPs",
+                    "metallb.universe.tf/protocol",
+                    "metallb.universe.tf/allow-shared-ip",
+                    "metallb.io/address-pool",
+                    "metallb.io/loadBalancerIPs",
+                    "metallb.io/protocol",
+                    "metallb.io/allow-shared-ip"
+                  ]
+                }
+              }
+            ]
+          },
+          "additionalProperties": {"type": "string"}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"allowSharedIP": {"const": true}}},
+          "then": {"properties": {"sharedIPKey": {"minLength": 1}}}
+        }
+      ]
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dns", "authorizedPeers"],
+      "properties": {
+        "dns": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["namespaceSelector", "podSelector"],
+          "properties": {
+            "namespaceSelector": {"$ref": "#/$defs/labelSelector"},
+            "podSelector": {"$ref": "#/$defs/labelSelector"}
+          }
+        },
+        "authorizedPeers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["namespaceSelector", "podSelector"],
+            "properties": {
+              "namespaceSelector": {"$ref": "#/$defs/labelSelector"},
+              "podSelector": {"$ref": "#/$defs/labelSelector"}
+            }
+          }
         }
       }
     },
@@ -119,6 +200,29 @@
       "required": ["kubernetes.io/arch"],
       "properties": {
         "kubernetes.io/arch": {"type": "string", "const": "arm64"}
+      }
+    }
+  },
+  "$defs": {
+    "labelSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matchLabels"],
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "maxLength": 253,
+            "pattern": "^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*/)?[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$"
+          }
+        }
       }
     }
   }

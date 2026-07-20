@@ -5,8 +5,35 @@ image:
   pullSecrets:
     - name: registry-credentials
 
-environment:
+service:
+  type: LoadBalancer
+  port: 9200
   loadBalancerIP: 192.0.2.50
+  addressPool: first-pool
+  protocol: layer2
+  externalTrafficPolicy: Local
+  loadBalancerSourceRanges:
+    - 198.51.100.0/24
+  allowSharedIP: false
+  sharedIPKey: ""
+  annotations:
+    example.com/owner: platform
+
+networkPolicy:
+  dns:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: kube-system
+    podSelector:
+      matchLabels:
+        k8s-app: kube-dns
+  authorizedPeers:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uino
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: elasticsearch-client
 
 snapshot:
   server: 192.0.2.60
