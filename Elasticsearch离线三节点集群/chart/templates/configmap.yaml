@@ -18,3 +18,6 @@ data:
     xpack.security.http.ssl.key: certs/tls.key
     xpack.security.http.ssl.certificate: certs/tls.crt
     xpack.security.http.ssl.certificate_authorities: [ "certs/ca.crt" ]
+    {{- if .Values.snapshot.enabled }}
+    path.repo: [ {{ .Values.snapshot.mountPath | quote }} ]
+    {{- end }}

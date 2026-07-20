@@ -1,0 +1,156 @@
+{{/* 快照开启后才创建 Hook，关闭时不保留注册任务或对应运行面。 */}}
+{{- if .Values.snapshot.enabled }}
+{{/* 保留策略计数错误必须在提交任何 Elasticsearch API 请求前失败。 */}}
+{{- if gt (int .Values.snapshot.slm.retention.minCount) (int .Values.snapshot.slm.retention.maxCount) -}}
+{{- fail "snapshot.slm.retention.minCount must not exceed maxCount" -}}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "uino-elasticsearch.fullname" . }}-snapshot
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: elasticsearch-client
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: snapshot
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  # Job 的有限重试和总时限避免升级 Hook 无限阻塞。
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: elasticsearch-client
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: snapshot
+    spec:
+      # 失败后保留 Pod 日志，成功 Hook 由 Helm 的 hook-delete-policy 清理。
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        # Hook 与 StatefulSet 使用同一 ARM64 节点选择器，避免错误架构调度。
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: snapshot-register
+          image: {{ include "uino-elasticsearch.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          command: ["/bin/bash", "-ec"]
+          args:
+            - |
+              # 任一未处理错误都会终止 Job，禁止在失败后继续注册仓库。
+              set -euo pipefail
+
+              # 使用受控方法、路径和 JSON 请求体访问集群；密码只经环境变量传递。
+              request() {
+                local method="$1" path="$2" body="${3:-}"
+                local options=(
+                  --silent --show-error --fail
+                  --retry 2 --retry-connrefused --retry-delay 2
+                  --connect-timeout 5 --max-time 15
+                  --cacert /etc/elasticsearch/tls/ca.crt
+                  --user "elastic:${ELASTIC_PASSWORD}"
+                  --request "${method}"
+                )
+                if [[ -n "${body}" ]]; then
+                  options+=(--header "Content-Type: application/json" --data-binary "${body}")
+                fi
+                curl "${options[@]}" "${ES_URL}${path}"
+              }
+
+              # 在固定次数内等待集群达到可写的黄色状态，避免无界轮询。
+              healthy=false
+              for attempt in $(seq 1 20); do
+                if request GET "/_cluster/health?wait_for_status=yellow&timeout=5s" >/dev/null; then
+                  healthy=true
+                  break
+                fi
+                if [[ "${attempt}" -eq 20 ]]; then
+                  echo "Elasticsearch did not become ready before the retry limit" >&2
+                  exit 1
+                fi
+                sleep 5
+              done
+              [[ "${healthy}" == true ]] || exit 1
+
+              # 注册 fs 仓库后立刻执行节点级可读写校验；失败不会删除已有快照。
+              repository_body=$(printf \
+                '{"type":"fs","settings":{"location":"%s","compress":true}}' \
+                "${SNAPSHOT_LOCATION}")
+              request PUT "/_snapshot/${REPOSITORY_NAME}" "${repository_body}" >/dev/null
+              request POST "/_snapshot/${REPOSITORY_NAME}/_verify" >/dev/null
+
+              # SLM 关闭时只注册并验证仓库，不向集群创建定时策略。
+              if [[ "${SLM_ENABLED}" == true ]]; then
+                slm_body=$(printf \
+                  '{"schedule":"%s","name":"%s","repository":"%s","config":{"indices":["*"],"include_global_state":true},"retention":{"expire_after":"%s","min_count":%s,"max_count":%s}}' \
+                  "${SLM_SCHEDULE}" "${SLM_SNAPSHOT_NAME}" "${REPOSITORY_NAME}" \
+                  "${SLM_EXPIRE_AFTER}" "${SLM_MIN_COUNT}" "${SLM_MAX_COUNT}")
+                request PUT "/_slm/policy/${SLM_POLICY_NAME}" "${slm_body}" >/dev/null
+              fi
+          env:
+            # 集群内部 Service 的 HTTPS 地址，传输中始终使用挂载 CA 校验。
+            - name: ES_URL
+              value: {{ printf "https://%s:%v" (include "uino-elasticsearch.fullname" .) .Values.service.port | quote }}
+            - name: ELASTIC_PASSWORD
+              # 管理员密码只从既有或 Chart 管理的 Secret 读取，绝不写入模板。
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "uino-elasticsearch.credentialsSecretName" . }}
+                  key: elastic-password
+            - name: REPOSITORY_NAME
+              value: {{ .Values.snapshot.repositoryName | quote }}
+            - name: SNAPSHOT_LOCATION
+              # Schema 已保证目录是受限的独立集群子目录，不允许路径穿越。
+              value: {{ printf "%s/%s" (trimSuffix "/" .Values.snapshot.mountPath) .Values.snapshot.clusterPath | quote }}
+            - name: SLM_ENABLED
+              value: {{ .Values.snapshot.slm.enabled | quote }}
+            - name: SLM_POLICY_NAME
+              value: {{ .Values.snapshot.slm.name | quote }}
+            - name: SLM_SCHEDULE
+              value: {{ .Values.snapshot.slm.schedule | quote }}
+            - name: SLM_SNAPSHOT_NAME
+              value: {{ .Values.snapshot.slm.snapshotName | quote }}
+            - name: SLM_EXPIRE_AFTER
+              value: {{ .Values.snapshot.slm.retention.expireAfter | quote }}
+            - name: SLM_MIN_COUNT
+              value: {{ .Values.snapshot.slm.retention.minCount | quote }}
+            - name: SLM_MAX_COUNT
+              value: {{ .Values.snapshot.slm.retention.maxCount | quote }}
+          volumeMounts:
+            # 仅挂载 CA，不挂载快照 NFS；NFS 由 Elasticsearch 节点自身访问。
+            - name: tls-ca
+              mountPath: /etc/elasticsearch/tls
+              readOnly: true
+      volumes:
+        # CA Secret 只读挂载，防止 Hook 修改 TLS 身份材料。
+        - name: tls-ca
+          secret:
+            secretName: {{ include "uino-elasticsearch.tlsSecretName" . }}
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt
+{{- end }}

@@ -24,6 +24,11 @@ ES_SELECTOR = {
     "app.kubernetes.io/name": "uino-elasticsearch",
     "app.kubernetes.io/instance": "es-cluster",
 }
+HOOK_SELECTOR = {
+    "app.kubernetes.io/name": "elasticsearch-client",
+    "app.kubernetes.io/instance": "es-cluster",
+    "app.kubernetes.io/component": "snapshot",
+}
 DNS_NAMESPACE_SELECTOR = {"kubernetes.io/metadata.name": "kube-system"}
 DNS_POD_SELECTOR = {"k8s-app": "kube-dns"}
 
@@ -136,7 +141,7 @@ def assert_ingress(rules: list[dict[str, Any]]) -> None:
     http_sources = rule_for_port(rules, 9200)["from"]
     assert {source["ipBlock"]["cidr"] for source in http_sources if "ipBlock" in source} == {SOURCE_CIDR}  # fmt: skip
     peers = [source for source in http_sources if "ipBlock" not in source]
-    expected = {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "uino"}}, "podSelector": {"matchLabels": {"app.kubernetes.io/name": "elasticsearch-client"}}}  # fmt: skip
+    expected = {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "uino"}}, "podSelector": {"matchLabels": HOOK_SELECTOR}}  # fmt: skip
     assert peers == [expected]
 
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "service", "networkPolicy", "security", "tls", "heap", "resources", "nodeSelector"],
+  "required": ["image", "service", "networkPolicy", "snapshot", "security", "tls", "heap", "resources", "nodeSelector"],
   "properties": {
     "image": {
       "type": "object",
@@ -137,17 +137,100 @@
     "snapshot": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["enabled", "repositoryName", "nfs", "mountPath", "clusterPath", "slm"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "server": {
+        "repositoryName": {
           "type": "string",
-          "oneOf": [{"const": ""}, {"minLength": 1}]
+          "maxLength": 255,
+          "pattern": "^$|^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
         },
-        "path": {
+        "nfs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["server", "path"],
+          "properties": {
+            "server": {
+              "type": "string",
+              "maxLength": 253,
+              "pattern": "^$|^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$"
+            },
+            "path": {"$ref": "#/$defs/optionalAbsolutePath"}
+          }
+        },
+        "mountPath": {"type": "string", "const": "/mnt/es-snapshots"},
+        "clusterPath": {
           "type": "string",
-          "oneOf": [{"const": ""}, {"pattern": "^/[^\\s]*$"}]
+          "maxLength": 512,
+          "pattern": "^$|^(?:[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?/)*[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$",
+          "not": {"pattern": "\\.\\."}
+        },
+        "slm": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "name", "schedule", "snapshotName", "retention"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "name": {
+              "type": "string",
+              "maxLength": 255,
+              "pattern": "^$|^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+            },
+            "schedule": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^$|^[0-9*?,/ LW#-]+$"
+            },
+            "snapshotName": {
+              "type": "string",
+              "maxLength": 255,
+              "pattern": "^$|^[A-Za-z0-9._<>{}/-]+$"
+            },
+            "retention": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["expireAfter", "minCount", "maxCount"],
+              "properties": {
+                "expireAfter": {"type": "string", "pattern": "^$|^[1-9][0-9]*[dhm]$"},
+                "minCount": {"type": "integer", "minimum": 1, "maximum": 10000},
+                "maxCount": {"type": "integer", "minimum": 1, "maximum": 10000}
+              }
+            }
+          }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"enabled": {"const": true}}, "required": ["enabled"]},
+          "then": {
+            "properties": {
+              "repositoryName": {"minLength": 1},
+              "nfs": {
+                "properties": {
+                  "server": {"minLength": 1},
+                  "path": {"minLength": 1}
+                }
+              },
+              "mountPath": {"minLength": 1},
+              "clusterPath": {"minLength": 1},
+              "slm": {
+                "if": {
+                  "properties": {"enabled": {"const": true}},
+                  "required": ["enabled"]
+                },
+                "then": {
+                  "properties": {
+                    "name": {"minLength": 1},
+                    "schedule": {"minLength": 1},
+                    "snapshotName": {"minLength": 1},
+                    "retention": {"properties": {"expireAfter": {"minLength": 1}}}
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "security": {
       "type": "object",
@@ -204,6 +287,12 @@
     }
   },
   "$defs": {
+    "optionalAbsolutePath": {
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^$|^/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+/?$",
+      "not": {"pattern": "\\.\\."}
+    },
     "labelSelector": {
       "type": "object",
       "additionalProperties": false,

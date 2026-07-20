@@ -1,3 +1,5 @@
+{{- $snapshotNamespace := dict "kubernetes.io/metadata.name" .Release.Namespace -}}
+{{- $snapshotPeer := dict "app.kubernetes.io/name" "elasticsearch-client" "app.kubernetes.io/instance" .Release.Name "app.kubernetes.io/component" "snapshot" -}}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -21,13 +23,24 @@ spec:
         - protocol: TCP
           port: 9300
     - from:
+        {{- if .Values.snapshot.enabled }}
+        # 快照 Hook 必须独立于可配置客户端 peer 获得本 release 的 HTTP 授权。
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml $snapshotNamespace | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $snapshotPeer | nindent 14 }}
+        {{- end }}
         {{- range .Values.networkPolicy.authorizedPeers }}
+        {{- if not (and (eq (toJson .namespaceSelector.matchLabels) (toJson $snapshotNamespace)) (eq (toJson .podSelector.matchLabels) (toJson $snapshotPeer))) }}
         - namespaceSelector:
             matchLabels:
               {{- toYaml .namespaceSelector.matchLabels | nindent 14 }}
           podSelector:
             matchLabels:
               {{- toYaml .podSelector.matchLabels | nindent 14 }}
+        {{- end }}
         {{- end }}
         {{- range .Values.service.loadBalancerSourceRanges }}
         - ipBlock:

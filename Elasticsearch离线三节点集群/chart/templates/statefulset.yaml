@@ -136,6 +136,11 @@ spec:
             - name: tls
               mountPath: /usr/share/elasticsearch/config/certs
               readOnly: true
+            {{- if .Values.snapshot.enabled }}
+            - name: snapshots
+              mountPath: {{ .Values.snapshot.mountPath }}
+              readOnly: false
+            {{- end }}
           startupProbe:
             exec:
               command:
@@ -178,3 +183,10 @@ spec:
           secret:
             secretName: {{ include "uino-elasticsearch.tlsSecretName" . }}
             defaultMode: 0440
+        {{- if .Values.snapshot.enabled }}
+        - name: snapshots
+          nfs:
+            server: {{ .Values.snapshot.nfs.server | quote }}
+            path: {{ .Values.snapshot.nfs.path | quote }}
+            readOnly: false
+        {{- end }}

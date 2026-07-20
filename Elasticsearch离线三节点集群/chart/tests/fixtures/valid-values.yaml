@@ -34,7 +34,23 @@ networkPolicy:
       podSelector:
         matchLabels:
           app.kubernetes.io/name: elasticsearch-client
+          app.kubernetes.io/instance: es-cluster
+          app.kubernetes.io/component: snapshot
 
 snapshot:
-  server: 192.0.2.60
-  path: /exports/es-snapshots
+  enabled: true
+  repositoryName: uino-es-snapshot
+  nfs:
+    server: 192.0.2.60
+    path: /exports/es-snapshots
+  mountPath: /mnt/es-snapshots
+  clusterPath: uino/es-cluster
+  slm:
+    enabled: true
+    name: uino-es-daily
+    schedule: "0 30 1 * * ?"
+    snapshotName: "<uino-es-snapshot-{now/d}>"
+    retention:
+      expireAfter: 30d
+      minCount: 5
+      maxCount: 50

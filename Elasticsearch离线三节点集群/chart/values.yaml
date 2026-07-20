@@ -36,9 +36,22 @@ networkPolicy:
           app.kubernetes.io/name: elasticsearch-client
 
 snapshot:
-  enabled: false
-  server: ""
-  path: ""
+  enabled: true
+  repositoryName: uino-es-snapshot
+  nfs:
+    server: ""
+    path: ""
+  mountPath: /mnt/es-snapshots
+  clusterPath: uino/es-cluster
+  slm:
+    enabled: true
+    name: uino-es-daily
+    schedule: "0 30 1 * * ?"
+    snapshotName: "<uino-es-snapshot-{now/d}>"
+    retention:
+      expireAfter: 30d
+      minCount: 5
+      maxCount: 50
 
 security:
   existingCredentialsSecret: ""

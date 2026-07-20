@@ -41,16 +41,16 @@ assert_invalid_value() {
 # 前置：不提供部署环境和私有镜像输入。
 # 目的：确认严格 schema 拒绝不可部署的默认配置。
 # 约束：默认值不能指向公共镜像或隐式 latest 标签。
-# 约束：环境与快照输入由后续条件任务负责。
-# 失败：Helm 应返回 image 或 digest 字段错误。
+# 约束：默认启用的快照也必须要求客户提供 NFS 输入。
+# 失败：Helm 应同时返回 image、digest 和 snapshot 字段错误。
 # 范围：只验证 values schema，不渲染资源断言。
-# 结果：错误输出不应出现可接受的环境或快照缺失错误。
+# 结果：错误输出应覆盖镜像、固定 IP 和快照 NFS 缺失。
 @test "core cluster requires a private digest-pinned image" {
   # 默认值不得隐式指向任何公共镜像。
   run helm template es-cluster "$CHART_DIR" -n uino
   [ "$status" -ne 0 ]
   [[ "$output" == *"/image"* && "$output" == *"digest"* ]]
-  [[ "$output" == *"loadBalancerIP"* && "$output" != *"/snapshot"* ]]
+  [[ "$output" == *"loadBalancerIP"* && "$output" == *"/snapshot"* ]]
 }
 
 # 前置：使用完整离线 fixture 作为有效基线。

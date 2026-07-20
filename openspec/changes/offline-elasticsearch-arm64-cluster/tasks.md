@@ -64,7 +64,7 @@ Implementation sequence:
 
 ## 3. NFS 快照仓库与 SLM 初始化
 
-- [ ] 3.1 以测试先行方式实现独立 NFS 快照挂载、`path.repo`、仓库注册与验证、SLM 策略和失败可观测的 Helm Hook Job
+- [x] 3.1 以测试先行方式实现独立 NFS 快照挂载、`path.repo`、仓库注册与验证、SLM 策略和失败可观测的 Helm Hook Job
 
 **Task boundary and agent dispatch**
 
@@ -72,11 +72,12 @@ Implementation sequence:
 | --- | --- |
 | Module agent | `elasticsearch-snapshot-agent` |
 | Owned responsibility | 实现快照配置、挂载、初始化 API 调用和保留策略 |
-| Allowed files | `Elasticsearch离线三节点集群/chart/values.yaml`, `values.schema.json`, `templates/configmap.yaml`, `templates/statefulset.yaml`, `templates/snapshot-job.yaml`, `tests/render_test.bats`, `tests/assert_render.py`, `tests/fixtures/valid-values.yaml` |
-| Out of scope | 数据 hostPath 模型、HTTP Service、NetworkPolicy、证书生成、README、远程镜像、OpenSpec 规格 |
+| Allowed files | `Elasticsearch离线三节点集群/chart/values.yaml`, `values.schema.json`, `templates/configmap.yaml`, `templates/statefulset.yaml`, `templates/networkpolicy.yaml`, `templates/snapshot-job.yaml`, `tests/render_test.bats`, `tests/snapshot_test.bats`, `tests/assert_snapshot.py`, `tests/assert_render.py`, `tests/assert_access.py`, `tests/fixtures/valid-values.yaml` |
+| Out of scope | 数据 hostPath 模型、HTTP Service、NetworkPolicy 的非快照 Hook 规则、证书生成、README、远程镜像、其他 OpenSpec 规格 |
+| 最小例外 | 仅允许在 `networkpolicy.yaml` 为本 release 的 `elasticsearch-client` 快照 Hook 增加固定 9200 ingress peer，避免 `authorizedPeers` 覆盖导致 Hook 失联；不改变其他网络边界。 |
 | Dependencies | Tasks 1.1 和 2.1 已提交 |
-| Focused verification | `bats Elasticsearch离线三节点集群/chart/tests/render_test.bats --filter 'snapshot'` |
-| Broader verification | `bats Elasticsearch离线三节点集群/chart/tests/render_test.bats && helm lint Elasticsearch离线三节点集群/chart -f Elasticsearch离线三节点集群/chart/tests/fixtures/valid-values.yaml && helm template es-cluster Elasticsearch离线三节点集群/chart -n uino -f Elasticsearch离线三节点集群/chart/tests/fixtures/valid-values.yaml >/tmp/es-rendered.yaml` |
+| Focused verification | `bats Elasticsearch离线三节点集群/chart/tests/snapshot_test.bats` |
+| Broader verification | `bats Elasticsearch离线三节点集群/chart/tests/*.bats && helm lint Elasticsearch离线三节点集群/chart -f Elasticsearch离线三节点集群/chart/tests/fixtures/valid-values.yaml && helm template es-cluster Elasticsearch离线三节点集群/chart -n uino -f Elasticsearch离线三节点集群/chart/tests/fixtures/valid-values.yaml >/tmp/es-rendered.yaml` |
 | Handoff evidence | RED/GREEN 输出、快照 Job API 请求断言、NFS/path.repo 断言、触及文件列表 |
 
 Implementation sequence:
