@@ -1,3 +1,4 @@
+{{- /* 文件说明：生成 Elasticsearch 安全通信配置，并在启用快照时声明共享仓库白名单。 */ -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:

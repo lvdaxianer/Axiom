@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# 文件说明：覆盖 NFS 快照启停、外部 Secret、授权 peer、SLM 参数及非法配置场景。
 
 find_python() {
   # 选择同时提供 PyYAML 和 cryptography 的结构化断言解释器。

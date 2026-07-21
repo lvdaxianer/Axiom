@@ -1,3 +1,5 @@
+# 文件说明：提供离线安装的默认参数；空镜像、固定 IP 和 NFS 地址必须由交付 values 覆盖。
+# 镜像必须来自客户私有仓库，并通过 digest 固定实际内容，避免离线环境拉取漂移。
 image:
   repository: ""
   tag: ""
@@ -5,6 +7,7 @@ image:
   pullPolicy: IfNotPresent
   pullSecrets: []
 
+# MetalLB 暴露 9200；固定 IP 与允许访问的来源网段均为必填交付参数。
 service:
   type: LoadBalancer
   port: 9200
@@ -35,6 +38,7 @@ networkPolicy:
         matchLabels:
           app.kubernetes.io/name: elasticsearch-client
 
+# 三个 ES 节点直接挂载同一 NFS export，并使用 clusterPath 隔离本集群快照目录。
 snapshot:
   enabled: true
   repositoryName: uino-es-snapshot
@@ -53,17 +57,22 @@ snapshot:
       minCount: 5
       maxCount: 50
 
+# 留空时由 Chart 创建并保留凭据 Secret；填写后只引用客户预置 Secret。
 security:
   existingCredentialsSecret: ""
 
+# 留空时由 Chart 创建并保留 TLS Secret；填写后只引用客户预置证书。
 tls:
   existingSecret: ""
 
+# Xms 与 Xmx 必须相同，防止运行期堆大小伸缩造成额外内存压力。
 heap: -Xms4g -Xmx4g
 
+# ARM64 镜像只能调度到 ARM64 Worker。
 nodeSelector:
   kubernetes.io/arch: arm64
 
+# 内存 limit 应高于 JVM heap，为文件缓存和进程本身保留空间。
 resources:
   requests:
     cpu: "2"

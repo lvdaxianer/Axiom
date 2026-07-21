@@ -1,3 +1,4 @@
+{{- /* 文件说明：限制 Elasticsearch Pod 的 HTTP/transport 入站及 transport/DNS 出站流量。 */ -}}
 {{- $snapshotNamespace := dict "kubernetes.io/metadata.name" .Release.Namespace -}}
 {{- $snapshotPeer := dict "app.kubernetes.io/name" "elasticsearch-client" "app.kubernetes.io/instance" .Release.Name "app.kubernetes.io/component" "snapshot" -}}
 apiVersion: networking.k8s.io/v1

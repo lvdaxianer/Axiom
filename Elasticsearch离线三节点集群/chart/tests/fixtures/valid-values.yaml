@@ -1,3 +1,5 @@
+# 文件说明：提供 Helm 测试使用的完整有效覆盖值，地址和 digest 均为保留示例数据。
+# 固定镜像身份用于断言离线私有仓库、ARM64 tag 与 digest 的组合。
 image:
   repository: registry.internal.example/uino/elasticsearch
   tag: 7.10.2-arm64-hardened
@@ -5,6 +7,7 @@ image:
   pullSecrets:
     - name: registry-credentials
 
+# 使用文档保留网段验证 MetalLB 固定 IP、来源 CIDR 和自定义注解。
 service:
   type: LoadBalancer
   port: 9200
@@ -19,6 +22,7 @@ service:
   annotations:
     example.com/owner: platform
 
+# 同时提供 DNS 目标和授权客户端的 namespace/pod 双重选择器。
 networkPolicy:
   dns:
     namespaceSelector:
@@ -37,6 +41,7 @@ networkPolicy:
           app.kubernetes.io/instance: es-cluster
           app.kubernetes.io/component: snapshot
 
+# 使用文档保留地址验证 NFS 仓库、集群子目录和 SLM 保留策略。
 snapshot:
   enabled: true
   repositoryName: uino-es-snapshot

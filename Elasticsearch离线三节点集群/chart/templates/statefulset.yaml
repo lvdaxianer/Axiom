@@ -1,3 +1,4 @@
+{{- /* 文件说明：运行三个 Elasticsearch 主数据节点，并配置共享数据目录、安全上下文、TLS 和健康探针。 */ -}}
 {{- include "uino-elasticsearch.validateHeap" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
@@ -35,6 +36,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       affinity:
+        # 强制三个副本分散到不同 Worker，单机故障不会同时丢失多数节点。
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
@@ -170,6 +172,7 @@ spec:
             timeoutSeconds: 8
             failureThreshold: 3
       volumes:
+        # 客户保证该目录由所有 Worker 共享挂载；subPathExpr 再按 Pod 隔离数据。
         - name: data
           hostPath:
             path: /data/uinnova/apps/es

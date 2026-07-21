@@ -1,3 +1,4 @@
+{{- /* 文件说明：通过 MetalLB 固定 IP 暴露 Elasticsearch HTTPS 9200，并限制外部来源网段。 */ -}}
 apiVersion: v1
 kind: Service
 metadata:

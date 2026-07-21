@@ -1,3 +1,4 @@
+# 文件说明：声明离线三节点 Elasticsearch 7.10.2 ARM64 Helm Chart 的元数据和版本。
 apiVersion: v2
 name: uino-elasticsearch
 description: Offline three-node Elasticsearch 7.10.2 ARM64 cluster

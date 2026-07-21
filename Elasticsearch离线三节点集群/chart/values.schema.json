@@ -1,15 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "文件说明：校验离线三节点 Elasticsearch Chart 的镜像、网络、安全、快照和资源参数。",
   "type": "object",
   "additionalProperties": false,
   "required": ["image", "service", "networkPolicy", "snapshot", "security", "tls", "heap", "resources", "nodeSelector"],
   "properties": {
     "image": {
+      "description": "限定来自客户私有仓库且由 tag 与 digest 双重固定的 ARM64 Elasticsearch 镜像。",
       "type": "object",
       "additionalProperties": false,
       "required": ["repository", "tag", "digest", "pullPolicy"],
       "properties": {
         "repository": {
+          "description": "客户离线私有仓库中的镜像路径，禁止直接引用公网 Docker Hub 或 Elastic 仓库。",
           "type": "string",
           "pattern": "^[A-Za-z0-9.-]+(?::[0-9]+)?/[A-Za-z0-9._/-]+$",
           "allOf": [
@@ -19,10 +22,19 @@
             {"not": {"pattern": "^docker\\.elastic\\.co/"}}
           ]
         },
-        "tag": {"type": "string", "const": "7.10.2-arm64-hardened"},
-        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
-        "pullPolicy": {"type": "string", "enum": ["IfNotPresent", "Never"]},
+        "tag": {"description": "与交付 ARM64 镜像匹配的固定版本标签。", "type": "string", "const": "7.10.2-arm64-hardened"},
+        "digest": {
+          "description": "私有仓库中实际镜像内容的 SHA-256 摘要。",
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "pullPolicy": {
+          "description": "离线环境仅允许使用节点缓存或私有仓库，不使用 Always。",
+          "type": "string",
+          "enum": ["IfNotPresent", "Never"]
+        },
         "pullSecrets": {
+          "description": "访问客户私有镜像仓库所需的 Kubernetes Secret 引用。",
           "type": "array",
           "items": {
             "type": "object",
@@ -41,6 +53,7 @@
       }
     },
     "service": {
+      "description": "配置 MetalLB 固定 IP、来源网段和可选共享 IP 标识。",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "port", "loadBalancerIP", "addressPool", "protocol", "externalTrafficPolicy", "loadBalancerSourceRanges", "allowSharedIP", "sharedIPKey", "annotations"],
@@ -48,6 +61,7 @@
         "type": {"type": "string", "const": "LoadBalancer"},
         "port": {"type": "integer", "const": 9200},
         "loadBalancerIP": {
+          "description": "必须从 first-pool 分配且预留给 Elasticsearch 的固定 IPv4 地址。",
           "type": "string",
           "minLength": 7,
           "pattern": "^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$"
@@ -56,6 +70,7 @@
         "protocol": {"type": "string", "const": "layer2"},
         "externalTrafficPolicy": {"type": "string", "const": "Local"},
         "loadBalancerSourceRanges": {
+          "description": "允许通过固定 IP 访问 9200 的外部客户端 CIDR 白名单。",
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
@@ -72,6 +87,7 @@
           "not": {"const": "true"}
         },
         "annotations": {
+          "description": "附加 Service 注解；MetalLB 保留键只能由 Chart 管理。",
           "type": "object",
           "propertyNames": {
             "allOf": [
@@ -106,6 +122,7 @@
       ]
     },
     "networkPolicy": {
+      "description": "限制 Elasticsearch Pod 的客户端入站、节点 transport 互访和 DNS 出站。",
       "type": "object",
       "additionalProperties": false,
       "required": ["dns", "authorizedPeers"],
@@ -135,6 +152,7 @@
       }
     },
     "snapshot": {
+      "description": "配置所有节点共享的 NFS 快照仓库和 Elasticsearch SLM 生命周期策略。",
       "type": "object",
       "additionalProperties": false,
       "required": ["enabled", "repositoryName", "nfs", "mountPath", "clusterPath", "slm"],
@@ -146,6 +164,7 @@
           "pattern": "^$|^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
         },
         "nfs": {
+          "description": "所有 Worker 都能访问的 NFS server 与 export 路径。",
           "type": "object",
           "additionalProperties": false,
           "required": ["server", "path"],
@@ -160,12 +179,14 @@
         },
         "mountPath": {"type": "string", "const": "/mnt/es-snapshots"},
         "clusterPath": {
+          "description": "当前集群在共享 NFS export 中独占的相对目录，禁止路径穿越。",
           "type": "string",
           "maxLength": 512,
           "pattern": "^$|^(?:[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?/)*[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$",
           "not": {"pattern": "\\.\\."}
         },
         "slm": {
+          "description": "安装或升级后写入 Elasticsearch 的定时快照与保留策略。",
           "type": "object",
           "additionalProperties": false,
           "required": ["enabled", "name", "schedule", "snapshotName", "retention"],
@@ -233,6 +254,7 @@
       ]
     },
     "security": {
+      "description": "选择 Chart 管理的 elastic 密码 Secret 或客户预置 Secret。",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -243,6 +265,7 @@
       }
     },
     "tls": {
+      "description": "选择 Chart 管理的集群证书 Secret 或客户预置 TLS Secret。",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -252,8 +275,13 @@
         }
       }
     },
-    "heap": {"type": "string", "pattern": "^-Xms[1-9][0-9]*[mMgG] -Xmx[1-9][0-9]*[mMgG]$"},
+    "heap": {
+      "description": "Elasticsearch JVM 堆参数；模板进一步要求 Xms 与 Xmx 完全相同。",
+      "type": "string",
+      "pattern": "^-Xms[1-9][0-9]*[mMgG] -Xmx[1-9][0-9]*[mMgG]$"
+    },
     "resources": {
+      "description": "Elasticsearch 容器的 CPU 与内存 requests/limits。",
       "type": "object",
       "additionalProperties": false,
       "required": ["requests", "limits"],
@@ -279,6 +307,7 @@
       }
     },
     "nodeSelector": {
+      "description": "强制 StatefulSet 和快照 Hook 调度到 ARM64 Worker。",
       "type": "object",
       "required": ["kubernetes.io/arch"],
       "properties": {
@@ -288,12 +317,14 @@
   },
   "$defs": {
     "optionalAbsolutePath": {
+      "description": "允许为空或不包含路径穿越片段的绝对路径。",
       "type": "string",
       "maxLength": 512,
       "pattern": "^$|^/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+/?$",
       "not": {"pattern": "\\.\\."}
     },
     "labelSelector": {
+      "description": "要求至少一个精确 matchLabels 的 Kubernetes 标签选择器。",
       "type": "object",
       "additionalProperties": false,
       "required": ["matchLabels"],

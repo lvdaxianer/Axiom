@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 文件说明：结构化校验 MetalLB 固定 IP、TLS SAN 和 NetworkPolicy 访问边界。
 """结构化校验 Elasticsearch 固定 IP 服务和双向网络隔离策略。
 
 Args:

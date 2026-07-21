@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# 文件说明：覆盖核心集群、固定 IP、安全隔离、Schema 拒绝路径和 Secret 复用场景。
 
 find_python() {
   # 选择同时具备结构化 YAML 和 X.509 解析能力的解释器。

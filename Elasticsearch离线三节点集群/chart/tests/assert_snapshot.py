@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
+# 文件说明：结构化校验 NFS 挂载、快照 Hook、SLM 请求和失败处理契约。
 """结构化校验 NFS 快照挂载、Helm Hook 和 Elasticsearch API 脚本。
-
-Args:
-    无，通过命令行接收断言模式和渲染文件。
-Returns:
-    模块本身无返回值。
+通过命令行接收断言模式和渲染文件，模块本身无返回值。
 Author: lvdaxianer@yeah.net
 Date: 2026-07-21
 """

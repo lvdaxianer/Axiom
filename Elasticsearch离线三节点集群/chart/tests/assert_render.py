@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 文件说明：结构化校验三节点 StatefulSet、Secret、TLS 和核心运行配置。
 """校验 Elasticsearch 核心 Helm 资源和 X.509 身份材料。
 
 Args:
