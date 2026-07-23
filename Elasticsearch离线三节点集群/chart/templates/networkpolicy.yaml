@@ -1,74 +1,74 @@
 {{- /* 文件说明：限制 Elasticsearch Pod 的 HTTP/transport 入站及 transport/DNS 出站流量。 */ -}}
-{{- $snapshotNamespace := dict "kubernetes.io/metadata.name" .Release.Namespace -}}
-{{- $snapshotPeer := dict "app.kubernetes.io/name" "elasticsearch-client" "app.kubernetes.io/instance" .Release.Name "app.kubernetes.io/component" "snapshot" -}}
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: {{ include "uino-elasticsearch.fullname" . }}
-  labels:
-    {{- include "uino-elasticsearch.labels" . | nindent 4 }}
-spec:
-  podSelector:
-    matchLabels:
-      {{- include "uino-elasticsearch.selectorLabels" . | nindent 6 }}
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
+{{- /* 行说明：计算并保存后续模板渲染需要的局部变量。 */}}{{- $snapshotNamespace := dict "kubernetes.io/metadata.name" .Release.Namespace -}}
+{{- /* 行说明：计算并保存后续模板渲染需要的局部变量。 */}}{{- $snapshotPeer := dict "app.kubernetes.io/name" "elasticsearch-client" "app.kubernetes.io/instance" .Release.Name "app.kubernetes.io/component" "snapshot" -}}
+apiVersion: networking.k8s.io/v1{{/* 行说明：指定 Kubernetes 或 Helm 使用的 API 版本。 */}}
+kind: NetworkPolicy{{/* 行说明：声明当前清单创建的 Kubernetes 资源类型。 */}}
+metadata:{{/* 行说明：配置 metadata 字段，形成 networkpolicy.yaml 所需资源。 */}}
+  name: {{ include "uino-elasticsearch.fullname" . }}{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
+  labels:{{/* 行说明：配置 labels 字段，形成 networkpolicy.yaml 所需资源。 */}}
+    {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- include "uino-elasticsearch.labels" . | nindent 4 }}
+spec:{{/* 行说明：配置 spec 字段，形成 networkpolicy.yaml 所需资源。 */}}
+  podSelector:{{/* 行说明：按 Pod 标签限定允许通信的对象。 */}}
+    matchLabels:{{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */}}
+      {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- include "uino-elasticsearch.selectorLabels" . | nindent 6 }}
+  policyTypes:{{/* 行说明：配置 policyTypes 字段，形成 networkpolicy.yaml 所需资源。 */}}
+    - Ingress{{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */}}
+    - Egress{{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */}}
+  ingress:{{/* 行说明：配置 ingress 字段，形成 networkpolicy.yaml 所需资源。 */}}
     # transport 只允许同一 Elasticsearch release 的 Pod 互访。
-    - from:
-        - podSelector:
-            matchLabels:
-              {{- include "uino-elasticsearch.selectorLabels" . | nindent 14 }}
-      ports:
-        - protocol: TCP
-          port: 9300
-    - from:
-        {{- if .Values.snapshot.enabled }}
+    - from:{{/* 行说明：配置 from 字段，形成 networkpolicy.yaml 所需资源。 */}}
+        - podSelector:{{/* 行说明：按 Pod 标签限定允许通信的对象。 */}}
+            matchLabels:{{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */}}
+              {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- include "uino-elasticsearch.selectorLabels" . | nindent 14 }}
+      ports:{{/* 行说明：配置 ports 字段，形成 networkpolicy.yaml 所需资源。 */}}
+        - protocol: TCP{{/* 行说明：允许节点间使用 TCP 传输协议。 */}}
+          port: 9300{{/* 行说明：允许 Elasticsearch 节点间 transport 端口 9300 入站。 */}}
+    - from:{{/* 行说明：配置 from 字段，形成 networkpolicy.yaml 所需资源。 */}}
+        {{- /* 行说明：仅在该 Helm 条件成立时渲染后续内容。 */}}{{- if .Values.snapshot.enabled }}
         # 快照 Hook 必须独立于可配置客户端 peer 获得本 release 的 HTTP 授权。
-        - namespaceSelector:
-            matchLabels:
-              {{- toYaml $snapshotNamespace | nindent 14 }}
-          podSelector:
-            matchLabels:
-              {{- toYaml $snapshotPeer | nindent 14 }}
-        {{- end }}
-        {{- range .Values.networkPolicy.authorizedPeers }}
-        {{- if not (and (eq (toJson .namespaceSelector.matchLabels) (toJson $snapshotNamespace)) (eq (toJson .podSelector.matchLabels) (toJson $snapshotPeer))) }}
-        - namespaceSelector:
-            matchLabels:
-              {{- toYaml .namespaceSelector.matchLabels | nindent 14 }}
-          podSelector:
-            matchLabels:
-              {{- toYaml .podSelector.matchLabels | nindent 14 }}
-        {{- end }}
-        {{- end }}
-        {{- range .Values.service.loadBalancerSourceRanges }}
-        - ipBlock:
-            cidr: {{ . | quote }}
-        {{- end }}
-      ports:
-        - protocol: TCP
-          port: {{ .Values.service.port }}
-  egress:
+        - namespaceSelector:{{/* 行说明：按命名空间标签限定允许通信的对象。 */}}
+            matchLabels:{{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */}}
+              {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- toYaml $snapshotNamespace | nindent 14 }}
+          podSelector:{{/* 行说明：按 Pod 标签限定允许通信的对象。 */}}
+            matchLabels:{{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */}}
+              {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- toYaml $snapshotPeer | nindent 14 }}
+        {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}{{- end }}
+        {{- /* 行说明：遍历配置集合并为每个元素渲染对应内容。 */}}{{- range .Values.networkPolicy.authorizedPeers }}
+        {{- /* 行说明：仅在该 Helm 条件成立时渲染后续内容。 */}}{{- if not (and (eq (toJson .namespaceSelector.matchLabels) (toJson $snapshotNamespace)) (eq (toJson .podSelector.matchLabels) (toJson $snapshotPeer))) }}
+        - namespaceSelector:{{/* 行说明：按命名空间标签限定允许通信的对象。 */}}
+            matchLabels:{{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */}}
+              {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- toYaml .namespaceSelector.matchLabels | nindent 14 }}
+          podSelector:{{/* 行说明：按 Pod 标签限定允许通信的对象。 */}}
+            matchLabels:{{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */}}
+              {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- toYaml .podSelector.matchLabels | nindent 14 }}
+        {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}{{- end }}
+        {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}{{- end }}
+        {{- /* 行说明：遍历配置集合并为每个元素渲染对应内容。 */}}{{- range .Values.service.loadBalancerSourceRanges }}
+        - ipBlock:{{/* 行说明：配置 ipBlock 字段，形成 networkpolicy.yaml 所需资源。 */}}
+            cidr: {{ . | quote }}{{/* 行说明：配置 cidr 字段，形成 networkpolicy.yaml 所需资源。 */}}
+        {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}{{- end }}
+      ports:{{/* 行说明：配置 ports 字段，形成 networkpolicy.yaml 所需资源。 */}}
+        - protocol: TCP{{/* 行说明：允许授权客户端使用 TCP 访问 HTTPS 接口。 */}}
+          port: {{ .Values.service.port }}{{/* 行说明：允许 values 中配置的 Elasticsearch HTTPS 端口入站。 */}}
+  egress:{{/* 行说明：配置 egress 字段，形成 networkpolicy.yaml 所需资源。 */}}
     # ES 节点出站仅保留同一 release 的 TLS transport 通信。
-    - to:
-        - podSelector:
-            matchLabels:
-              {{- include "uino-elasticsearch.selectorLabels" . | nindent 14 }}
-      ports:
-        - protocol: TCP
-          port: 9300
+    - to:{{/* 行说明：配置 to 字段，形成 networkpolicy.yaml 所需资源。 */}}
+        - podSelector:{{/* 行说明：按 Pod 标签限定允许通信的对象。 */}}
+            matchLabels:{{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */}}
+              {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- include "uino-elasticsearch.selectorLabels" . | nindent 14 }}
+      ports:{{/* 行说明：配置 ports 字段，形成 networkpolicy.yaml 所需资源。 */}}
+        - protocol: TCP{{/* 行说明：允许节点间使用 TCP 传输协议。 */}}
+          port: 9300{{/* 行说明：允许 Elasticsearch 节点间 transport 端口 9300 出站。 */}}
     # DNS 仅允许 schema 校验后的集群 DNS namespace 与 pod 交集。
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              {{- toYaml .Values.networkPolicy.dns.namespaceSelector.matchLabels | nindent 14 }}
-          podSelector:
-            matchLabels:
-              {{- toYaml .Values.networkPolicy.dns.podSelector.matchLabels | nindent 14 }}
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
+    - to:{{/* 行说明：配置 to 字段，形成 networkpolicy.yaml 所需资源。 */}}
+        - namespaceSelector:{{/* 行说明：按命名空间标签限定允许通信的对象。 */}}
+            matchLabels:{{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */}}
+              {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- toYaml .Values.networkPolicy.dns.namespaceSelector.matchLabels | nindent 14 }}
+          podSelector:{{/* 行说明：按 Pod 标签限定允许通信的对象。 */}}
+            matchLabels:{{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */}}
+              {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- toYaml .Values.networkPolicy.dns.podSelector.matchLabels | nindent 14 }}
+      ports:{{/* 行说明：配置 ports 字段，形成 networkpolicy.yaml 所需资源。 */}}
+        - protocol: UDP{{/* 行说明：允许常规 DNS 查询使用 UDP 协议。 */}}
+          port: 53{{/* 行说明：允许访问 DNS 服务端口 53。 */}}
+        - protocol: TCP{{/* 行说明：允许大型响应或回退 DNS 查询使用 TCP 协议。 */}}
+          port: 53{{/* 行说明：允许访问 DNS 服务端口 53。 */}}

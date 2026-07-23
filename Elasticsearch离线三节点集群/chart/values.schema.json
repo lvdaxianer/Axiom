@@ -3,26 +3,61 @@
   "description": "文件说明：校验离线三节点 Elasticsearch Chart 的镜像、网络、安全、快照和资源参数。",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "service", "networkPolicy", "snapshot", "security", "tls", "heap", "resources", "nodeSelector"],
+  "required": [
+    "image",
+    "service",
+    "networkPolicy",
+    "snapshot",
+    "security",
+    "tls",
+    "heap",
+    "resources",
+    "nodeSelector"
+  ],
   "properties": {
     "image": {
       "description": "限定来自客户私有仓库且由 tag 与 digest 双重固定的 ARM64 Elasticsearch 镜像。",
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "tag", "digest", "pullPolicy"],
+      "required": [
+        "repository",
+        "tag",
+        "digest",
+        "pullPolicy"
+      ],
       "properties": {
         "repository": {
           "description": "客户离线私有仓库中的镜像路径，禁止直接引用公网 Docker Hub 或 Elastic 仓库。",
           "type": "string",
           "pattern": "^[A-Za-z0-9.-]+(?::[0-9]+)?/[A-Za-z0-9._/-]+$",
           "allOf": [
-            {"not": {"pattern": "^docker\\.io/"}},
-            {"not": {"pattern": "^index\\.docker\\.io/"}},
-            {"not": {"pattern": "^registry-1\\.docker\\.io/"}},
-            {"not": {"pattern": "^docker\\.elastic\\.co/"}}
+            {
+              "not": {
+                "pattern": "^docker\\.io/"
+              }
+            },
+            {
+              "not": {
+                "pattern": "^index\\.docker\\.io/"
+              }
+            },
+            {
+              "not": {
+                "pattern": "^registry-1\\.docker\\.io/"
+              }
+            },
+            {
+              "not": {
+                "pattern": "^docker\\.elastic\\.co/"
+              }
+            }
           ]
         },
-        "tag": {"description": "与交付 ARM64 镜像匹配的固定版本标签。", "type": "string", "const": "7.10.2-arm64-hardened"},
+        "tag": {
+          "description": "与交付 ARM64 镜像匹配的固定版本标签。",
+          "type": "string",
+          "const": "7.10.2-arm64-hardened"
+        },
         "digest": {
           "description": "私有仓库中实际镜像内容的 SHA-256 摘要。",
           "type": "string",
@@ -31,7 +66,10 @@
         "pullPolicy": {
           "description": "离线环境仅允许使用节点缓存或私有仓库，不使用 Always。",
           "type": "string",
-          "enum": ["IfNotPresent", "Never"]
+          "enum": [
+            "IfNotPresent",
+            "Never"
+          ]
         },
         "pullSecrets": {
           "description": "访问客户私有镜像仓库所需的 Kubernetes Secret 引用。",
@@ -39,13 +77,16 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["name"],
+            "required": [
+              "name"
+            ],
             "properties": {
               "name": {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 253,
-                "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$"
+                "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$",
+                "description": "引用用于登录客户私有镜像仓库的 Kubernetes Secret 名称。"
               }
             }
           }
@@ -56,19 +97,50 @@
       "description": "配置 MetalLB 固定 IP、来源网段和可选共享 IP 标识。",
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "port", "loadBalancerIP", "addressPool", "protocol", "externalTrafficPolicy", "loadBalancerSourceRanges", "allowSharedIP", "sharedIPKey", "annotations"],
+      "required": [
+        "type",
+        "port",
+        "loadBalancerIP",
+        "addressPool",
+        "protocol",
+        "externalTrafficPolicy",
+        "loadBalancerSourceRanges",
+        "allowSharedIP",
+        "sharedIPKey",
+        "annotations"
+      ],
       "properties": {
-        "type": {"type": "string", "const": "LoadBalancer"},
-        "port": {"type": "integer", "const": 9200},
+        "type": {
+          "type": "string",
+          "const": "LoadBalancer",
+          "description": "固定使用 LoadBalancer Service 接入 MetalLB 分配的外部地址。"
+        },
+        "port": {
+          "type": "integer",
+          "const": 9200,
+          "description": "固定暴露 Elasticsearch HTTPS 服务端口 9200。"
+        },
         "loadBalancerIP": {
           "description": "必须从 first-pool 分配且预留给 Elasticsearch 的固定 IPv4 地址。",
           "type": "string",
           "minLength": 7,
           "pattern": "^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$"
         },
-        "addressPool": {"type": "string", "const": "first-pool"},
-        "protocol": {"type": "string", "const": "layer2"},
-        "externalTrafficPolicy": {"type": "string", "const": "Local"},
+        "addressPool": {
+          "type": "string",
+          "const": "first-pool",
+          "description": "选择 MetalLB 分配固定 IP 的地址池。"
+        },
+        "protocol": {
+          "type": "string",
+          "const": "layer2",
+          "description": "指定 MetalLB 使用二层广播模式。"
+        },
+        "externalTrafficPolicy": {
+          "type": "string",
+          "const": "Local",
+          "description": "保留外部客户端源地址供访问控制判断。"
+        },
         "loadBalancerSourceRanges": {
           "description": "允许通过固定 IP 访问 9200 的外部客户端 CIDR 白名单。",
           "type": "array",
@@ -79,12 +151,18 @@
             "pattern": "^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])/([0-9]|[12][0-9]|3[0-2])$"
           }
         },
-        "allowSharedIP": {"type": "boolean"},
+        "allowSharedIP": {
+          "type": "boolean",
+          "description": "控制该固定 IP 是否允许与其他 Service 共享。"
+        },
         "sharedIPKey": {
           "type": "string",
           "maxLength": 63,
           "pattern": "^$|^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$",
-          "not": {"const": "true"}
+          "not": {
+            "const": "true"
+          },
+          "description": "设置 MetalLB 共享 IP 时使用的一致性标识。"
         },
         "annotations": {
           "description": "附加 Service 注解；MetalLB 保留键只能由 Chart 管理。",
@@ -111,13 +189,27 @@
               }
             ]
           },
-          "additionalProperties": {"type": "string"}
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       },
       "allOf": [
         {
-          "if": {"properties": {"allowSharedIP": {"const": true}}},
-          "then": {"properties": {"sharedIPKey": {"minLength": 1}}}
+          "if": {
+            "properties": {
+              "allowSharedIP": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "sharedIPKey": {
+                "minLength": 1
+              }
+            }
+          }
         }
       ]
     },
@@ -125,16 +217,29 @@
       "description": "限制 Elasticsearch Pod 的客户端入站、节点 transport 互访和 DNS 出站。",
       "type": "object",
       "additionalProperties": false,
-      "required": ["dns", "authorizedPeers"],
+      "required": [
+        "dns",
+        "authorizedPeers"
+      ],
       "properties": {
         "dns": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["namespaceSelector", "podSelector"],
+          "required": [
+            "namespaceSelector",
+            "podSelector"
+          ],
           "properties": {
-            "namespaceSelector": {"$ref": "#/$defs/labelSelector"},
-            "podSelector": {"$ref": "#/$defs/labelSelector"}
-          }
+            "namespaceSelector": {
+              "$ref": "#/$defs/labelSelector",
+              "description": "按命名空间标签限定允许通信的对象。"
+            },
+            "podSelector": {
+              "$ref": "#/$defs/labelSelector",
+              "description": "按 Pod 标签限定允许通信的对象。"
+            }
+          },
+          "description": "限定 Elasticsearch 进行域名解析时可访问的 DNS Pod。"
         },
         "authorizedPeers": {
           "type": "array",
@@ -142,12 +247,22 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["namespaceSelector", "podSelector"],
+            "required": [
+              "namespaceSelector",
+              "podSelector"
+            ],
             "properties": {
-              "namespaceSelector": {"$ref": "#/$defs/labelSelector"},
-              "podSelector": {"$ref": "#/$defs/labelSelector"}
+              "namespaceSelector": {
+                "$ref": "#/$defs/labelSelector",
+                "description": "按命名空间标签限定允许通信的对象。"
+              },
+              "podSelector": {
+                "$ref": "#/$defs/labelSelector",
+                "description": "按 Pod 标签限定允许通信的对象。"
+              }
             }
-          }
+          },
+          "description": "列出获准访问 Elasticsearch HTTP 端口的客户端。"
         }
       }
     },
@@ -155,96 +270,188 @@
       "description": "配置所有节点共享的 NFS 快照仓库和 Elasticsearch SLM 生命周期策略。",
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "repositoryName", "nfs", "mountPath", "clusterPath", "slm"],
+      "required": [
+        "enabled",
+        "repositoryName",
+        "nfs",
+        "mountPath",
+        "clusterPath",
+        "slm"
+      ],
       "properties": {
-        "enabled": {"type": "boolean"},
+        "enabled": {
+          "type": "boolean",
+          "description": "控制当前快照或 SLM 功能是否启用。"
+        },
         "repositoryName": {
           "type": "string",
           "maxLength": 255,
-          "pattern": "^$|^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+          "pattern": "^$|^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+          "description": "设置注册到 Elasticsearch 的快照仓库名称。"
         },
         "nfs": {
           "description": "所有 Worker 都能访问的 NFS server 与 export 路径。",
           "type": "object",
           "additionalProperties": false,
-          "required": ["server", "path"],
+          "required": [
+            "server",
+            "path"
+          ],
           "properties": {
             "server": {
               "type": "string",
               "maxLength": 253,
-              "pattern": "^$|^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$"
+              "pattern": "^$|^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$",
+              "description": "设置 NFS 服务端地址，必须可从每个 Worker 访问。"
             },
-            "path": {"$ref": "#/$defs/optionalAbsolutePath"}
+            "path": {
+              "$ref": "#/$defs/optionalAbsolutePath",
+              "description": "设置 NFS export 的绝对路径。"
+            }
           }
         },
-        "mountPath": {"type": "string", "const": "/mnt/es-snapshots"},
+        "mountPath": {
+          "type": "string",
+          "const": "/mnt/es-snapshots",
+          "description": "固定 NFS 在 Elasticsearch 容器内的挂载目录。"
+        },
         "clusterPath": {
           "description": "当前集群在共享 NFS export 中独占的相对目录，禁止路径穿越。",
           "type": "string",
           "maxLength": 512,
           "pattern": "^$|^(?:[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?/)*[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$",
-          "not": {"pattern": "\\.\\."}
+          "not": {
+            "pattern": "\\.\\."
+          }
         },
         "slm": {
           "description": "安装或升级后写入 Elasticsearch 的定时快照与保留策略。",
           "type": "object",
           "additionalProperties": false,
-          "required": ["enabled", "name", "schedule", "snapshotName", "retention"],
+          "required": [
+            "enabled",
+            "name",
+            "schedule",
+            "snapshotName",
+            "retention"
+          ],
           "properties": {
-            "enabled": {"type": "boolean"},
+            "enabled": {
+              "type": "boolean",
+              "description": "控制当前快照或 SLM 功能是否启用。"
+            },
             "name": {
               "type": "string",
               "maxLength": 255,
-              "pattern": "^$|^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+              "pattern": "^$|^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+              "description": "设置注册到 Elasticsearch 的 SLM 策略名称。"
             },
             "schedule": {
               "type": "string",
               "maxLength": 128,
-              "pattern": "^$|^[0-9*?,/ LW#-]+$"
+              "pattern": "^$|^[0-9*?,/ LW#-]+$",
+              "description": "使用 Elasticsearch cron 表达式设置快照执行时间。"
             },
             "snapshotName": {
               "type": "string",
               "maxLength": 255,
-              "pattern": "^$|^[A-Za-z0-9._<>{}/-]+$"
+              "pattern": "^$|^[A-Za-z0-9._<>{}/-]+$",
+              "description": "定义定时快照名称及日期占位表达式。"
             },
             "retention": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["expireAfter", "minCount", "maxCount"],
+              "required": [
+                "expireAfter",
+                "minCount",
+                "maxCount"
+              ],
               "properties": {
-                "expireAfter": {"type": "string", "pattern": "^$|^[1-9][0-9]*[dhm]$"},
-                "minCount": {"type": "integer", "minimum": 1, "maximum": 10000},
-                "maxCount": {"type": "integer", "minimum": 1, "maximum": 10000}
-              }
+                "expireAfter": {
+                  "type": "string",
+                  "pattern": "^$|^[1-9][0-9]*[dhm]$",
+                  "description": "设置快照超过该时长后可被清理。"
+                },
+                "minCount": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10000,
+                  "description": "设置清理后必须保留的最少快照数量。"
+                },
+                "maxCount": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10000,
+                  "description": "设置仓库允许保留的最大快照数量。"
+                }
+              },
+              "description": "设置 SLM 自动清理历史快照的保留边界。"
             }
           }
         }
       },
       "allOf": [
         {
-          "if": {"properties": {"enabled": {"const": true}}, "required": ["enabled"]},
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          },
           "then": {
             "properties": {
-              "repositoryName": {"minLength": 1},
+              "repositoryName": {
+                "minLength": 1
+              },
               "nfs": {
                 "properties": {
-                  "server": {"minLength": 1},
-                  "path": {"minLength": 1}
+                  "server": {
+                    "minLength": 1
+                  },
+                  "path": {
+                    "minLength": 1
+                  }
                 }
               },
-              "mountPath": {"minLength": 1},
-              "clusterPath": {"minLength": 1},
+              "mountPath": {
+                "minLength": 1
+              },
+              "clusterPath": {
+                "minLength": 1
+              },
               "slm": {
                 "if": {
-                  "properties": {"enabled": {"const": true}},
-                  "required": ["enabled"]
+                  "properties": {
+                    "enabled": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "enabled"
+                  ]
                 },
                 "then": {
                   "properties": {
-                    "name": {"minLength": 1},
-                    "schedule": {"minLength": 1},
-                    "snapshotName": {"minLength": 1},
-                    "retention": {"properties": {"expireAfter": {"minLength": 1}}}
+                    "name": {
+                      "minLength": 1
+                    },
+                    "schedule": {
+                      "minLength": 1
+                    },
+                    "snapshotName": {
+                      "minLength": 1
+                    },
+                    "retention": {
+                      "properties": {
+                        "expireAfter": {
+                          "minLength": 1
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -260,7 +467,8 @@
       "properties": {
         "existingCredentialsSecret": {
           "type": "string",
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$"
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$",
+          "description": "引用客户预置密码 Secret；留空时由 Chart 创建。"
         }
       }
     },
@@ -271,7 +479,8 @@
       "properties": {
         "existingSecret": {
           "type": "string",
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$"
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$",
+          "description": "引用客户预置 TLS Secret；留空时由 Chart 创建。"
         }
       }
     },
@@ -284,34 +493,63 @@
       "description": "Elasticsearch 容器的 CPU 与内存 requests/limits。",
       "type": "object",
       "additionalProperties": false,
-      "required": ["requests", "limits"],
+      "required": [
+        "requests",
+        "limits"
+      ],
       "properties": {
         "requests": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["cpu", "memory"],
+          "required": [
+            "cpu",
+            "memory"
+          ],
           "properties": {
-            "cpu": {"type": "string"},
-            "memory": {"type": "string"}
-          }
+            "cpu": {
+              "type": "string",
+              "description": "设置调度时为 Elasticsearch 预留的 CPU 请求量。"
+            },
+            "memory": {
+              "type": "string",
+              "description": "设置调度时为 Elasticsearch 预留的内存请求量。"
+            }
+          },
+          "description": "声明调度时必须为容器预留的最小资源。"
         },
         "limits": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["cpu", "memory"],
+          "required": [
+            "cpu",
+            "memory"
+          ],
           "properties": {
-            "cpu": {"type": "string"},
-            "memory": {"type": "string"}
-          }
+            "cpu": {
+              "type": "string",
+              "description": "设置 Elasticsearch 容器可使用的 CPU 上限。"
+            },
+            "memory": {
+              "type": "string",
+              "description": "设置容器内存上限并为 JVM 堆外内存预留空间。"
+            }
+          },
+          "description": "声明容器允许运行时使用的最大资源。"
         }
       }
     },
     "nodeSelector": {
       "description": "强制 StatefulSet 和快照 Hook 调度到 ARM64 Worker。",
       "type": "object",
-      "required": ["kubernetes.io/arch"],
+      "required": [
+        "kubernetes.io/arch"
+      ],
       "properties": {
-        "kubernetes.io/arch": {"type": "string", "const": "arm64"}
+        "kubernetes.io/arch": {
+          "type": "string",
+          "const": "arm64",
+          "description": "要求目标 Worker 的 CPU 架构与离线镜像一致。"
+        }
       }
     }
   },
@@ -321,13 +559,17 @@
       "type": "string",
       "maxLength": 512,
       "pattern": "^$|^/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+/?$",
-      "not": {"pattern": "\\.\\."}
+      "not": {
+        "pattern": "\\.\\."
+      }
     },
     "labelSelector": {
       "description": "要求至少一个精确 matchLabels 的 Kubernetes 标签选择器。",
       "type": "object",
       "additionalProperties": false,
-      "required": ["matchLabels"],
+      "required": [
+        "matchLabels"
+      ],
       "properties": {
         "matchLabels": {
           "type": "object",
@@ -341,7 +583,8 @@
             "minLength": 1,
             "maxLength": 63,
             "pattern": "^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$"
-          }
+          },
+          "description": "定义必须全部匹配的 Kubernetes 标签集合。"
         }
       }
     }

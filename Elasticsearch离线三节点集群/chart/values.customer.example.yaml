@@ -1,34 +1,34 @@
 # 文件说明：演示客户离线环境必须覆盖的镜像、MetalLB 固定地址和 NFS 快照参数。
 # 安装前必须替换全部文档示例地址和镜像 digest，示例值不能直接用于生产环境。
-image:
-  repository: registry.internal.example/uino/elasticsearch
-  tag: 7.10.2-arm64-hardened
-  digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
-  pullPolicy: IfNotPresent
-  pullSecrets:
-    - name: registry-credentials
+image: # 行说明：集中配置离线私有仓库中的 Elasticsearch 镜像。
+  repository: registry.internal.example/uino/elasticsearch # 行说明：指定客户私有仓库中的 Elasticsearch 镜像路径。
+  tag: 7.10.2-arm64-hardened # 行说明：固定 Elasticsearch 7.10.2 的架构适配标签。
+  digest: sha256:1111111111111111111111111111111111111111111111111111111111111111 # 行说明：使用 SHA-256 摘要锁定镜像内容，避免同标签漂移。
+  pullPolicy: IfNotPresent # 行说明：控制 kubelet 是否复用节点已有的离线镜像。
+  pullSecrets: # 行说明：列出访问客户私有镜像仓库所需的 Secret。
+    - name: registry-credentials # 行说明：引用用于登录客户私有镜像仓库的 Secret 名称。
 
 # 固定 IP 必须属于 first-pool，来源网段应收敛到实际调用方。
-service:
-  loadBalancerIP: 192.0.2.50
-  loadBalancerSourceRanges:
-    - 198.51.100.0/24
+service: # 行说明：配置通过 MetalLB 对外暴露的 HTTPS Service。
+  loadBalancerIP: 192.0.2.50 # 行说明：指定 MetalLB 为 Elasticsearch 保留的固定访问 IP。
+  loadBalancerSourceRanges: # 行说明：列出允许访问固定 IP 的客户端 CIDR。
+    - 198.51.100.0/24 # 行说明：允许该示例客户端网段访问 Elasticsearch 固定 IP。
 
 # NFS server/path 必须能被所有 Worker 访问，clusterPath 应保持集群独占。
-snapshot:
-  enabled: true
-  repositoryName: uino-es-snapshot
-  nfs:
-    server: 192.0.2.60
-    path: /exports/es-snapshots
-  mountPath: /mnt/es-snapshots
-  clusterPath: uino/es-cluster
-  slm:
-    enabled: true
-    name: uino-es-daily
-    schedule: "0 30 1 * * ?"
-    snapshotName: "<uino-es-snapshot-{now/d}>"
-    retention:
-      expireAfter: 30d
-      minCount: 5
-      maxCount: 50
+snapshot: # 行说明：配置共享 NFS 快照仓库和 SLM 生命周期策略。
+  enabled: true # 行说明：控制当前快照或 SLM 功能是否启用。
+  repositoryName: uino-es-snapshot # 行说明：设置注册到 Elasticsearch 的快照仓库名称。
+  nfs: # 行说明：指定所有 Worker 共同访问的 NFS export。
+    server: 192.0.2.60 # 行说明：设置 NFS 服务端地址，必须可从每个 Worker 访问。
+    path: /exports/es-snapshots # 行说明：设置 NFS export 的绝对路径。
+  mountPath: /mnt/es-snapshots # 行说明：固定 NFS 在 Elasticsearch 容器内的挂载目录。
+  clusterPath: uino/es-cluster # 行说明：使用独立子目录隔离当前集群的快照数据。
+  slm: # 行说明：配置 Elasticsearch Snapshot Lifecycle Management 策略。
+    enabled: true # 行说明：控制当前快照或 SLM 功能是否启用。
+    name: uino-es-daily # 行说明：设置注册到 Elasticsearch 的 SLM 策略名称。
+    schedule: "0 30 1 * * ?" # 行说明：使用 Elasticsearch cron 表达式设置快照执行时间。
+    snapshotName: "<uino-es-snapshot-{now/d}>" # 行说明：定义定时快照名称及日期占位表达式。
+    retention: # 行说明：设置 SLM 自动清理历史快照的保留边界。
+      expireAfter: 30d # 行说明：设置快照超过该时长后可被清理。
+      minCount: 5 # 行说明：设置清理后必须保留的最少快照数量。
+      maxCount: 50 # 行说明：设置仓库允许保留的最大快照数量。

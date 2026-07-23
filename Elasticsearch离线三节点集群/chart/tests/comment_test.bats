@@ -17,6 +17,13 @@ PURPOSE_HEADER_LINES=12
 setup() {
   CHART_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
   ASSERT_COMMENTS="${BATS_TEST_DIRNAME}/assert_comments.py"
+  LINE_COMMENT_FILES=(
+    "$CHART_DIR/Chart.yaml"
+    "$CHART_DIR/values.yaml"
+    "$CHART_DIR/values.customer.example.yaml"
+    "$CHART_DIR/tests/fixtures/valid-values.yaml"
+    "$CHART_DIR/templates/"*
+  )
 }
 
 # 输出缺少统一职责标记的相对文件路径。
@@ -42,6 +49,26 @@ find_missing_purpose_comments() {
       done
 }
 
+# 输出缺少逐行中文说明的部署源码位置。
+# Args: 无，读取 setup 初始化的 LINE_COMMENT_FILES。
+# Returns: 每行一个“相对路径:行号”；全部合格时无输出。
+# Author: lvdaxianer@yeah.net
+# Date: 2026-07-21
+find_missing_line_comments() {
+  local file marker
+  for file in "${LINE_COMMENT_FILES[@]}"; do
+    marker="# 行说明："
+    # Helm 模板使用不会进入渲染结果的 Go template 注释标记。
+    [[ "$file" == *"/templates/"* ]] && marker="行说明："
+    awk -v prefix="${file#"${CHART_DIR}/"}" -v marker="$marker" '
+      /^[[:space:]]*$/ { next }
+      /^[[:space:]]*#/ { next }
+      /^[[:space:]]*\{\{[-]?[[:space:]]*\/\*/ { next }
+      index($0, marker) == 0 { print prefix ":" NR }
+    ' "$file"
+  done
+}
+
 # 验证所有非 JSON 源文件的头部职责说明。
 # Args: 无，使用 setup 初始化的 Chart 路径。
 # Returns: 全部文件有职责标记时通过，否则输出缺失路径。
@@ -54,6 +81,19 @@ find_missing_purpose_comments() {
   # 仅缺失时打印全部相对路径，正常路径保持测试输出简洁。
   [ -z "$missing" ] || {
     printf '以下文件缺少中文文件说明：\n%s' "$missing"
+    return 1
+  }
+}
+
+# 验证部署 YAML 和 Helm 模板的每个有效源码行都有中文说明。
+# Args: 无，使用 setup 初始化的部署文件集合。
+# Returns: 全部有效行有说明时通过，否则输出缺失位置。
+# Author: lvdaxianer@yeah.net
+# Date: 2026-07-21
+@test "every deployment source line has a Chinese explanation" {
+  missing="$(find_missing_line_comments)"
+  [ -z "$missing" ] || {
+    printf '以下源码行缺少逐行中文说明：\n%s\n' "$missing"
     return 1
   }
 }

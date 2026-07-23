@@ -1,82 +1,82 @@
 # 文件说明：提供离线安装的默认参数；空镜像、固定 IP 和 NFS 地址必须由交付 values 覆盖。
 # 镜像必须来自客户私有仓库，并通过 digest 固定实际内容，避免离线环境拉取漂移。
-image:
-  repository: ""
-  tag: ""
-  digest: ""
-  pullPolicy: IfNotPresent
-  pullSecrets: []
+image: # 行说明：集中配置离线私有仓库中的 Elasticsearch 镜像。
+  repository: "" # 行说明：指定客户私有仓库中的 Elasticsearch 镜像路径。
+  tag: "" # 行说明：固定 Elasticsearch 7.10.2 的架构适配标签。
+  digest: "" # 行说明：使用 SHA-256 摘要锁定镜像内容，避免同标签漂移。
+  pullPolicy: IfNotPresent # 行说明：控制 kubelet 是否复用节点已有的离线镜像。
+  pullSecrets: [] # 行说明：列出访问客户私有镜像仓库所需的 Secret。
 
 # MetalLB 暴露 9200；固定 IP 与允许访问的来源网段均为必填交付参数。
-service:
-  type: LoadBalancer
-  port: 9200
-  loadBalancerIP: ""
-  addressPool: first-pool
-  protocol: layer2
-  externalTrafficPolicy: Local
-  loadBalancerSourceRanges: []
-  allowSharedIP: false
-  sharedIPKey: ""
-  annotations: {}
+service: # 行说明：配置通过 MetalLB 对外暴露的 HTTPS Service。
+  type: LoadBalancer # 行说明：使用 LoadBalancer Service 接入 MetalLB 固定 IP。
+  port: 9200 # 行说明：指定 Elasticsearch HTTPS 服务端口 9200。
+  loadBalancerIP: "" # 行说明：指定 MetalLB 为 Elasticsearch 保留的固定访问 IP。
+  addressPool: first-pool # 行说明：选择 MetalLB 分配固定 IP 的地址池。
+  protocol: layer2 # 行说明：指定 MetalLB 使用二层广播模式。
+  externalTrafficPolicy: Local # 行说明：保留外部客户端源地址供访问控制判断。
+  loadBalancerSourceRanges: [] # 行说明：列出允许访问固定 IP 的客户端 CIDR。
+  allowSharedIP: false # 行说明：控制该固定 IP 是否允许与其他 Service 共享。
+  sharedIPKey: "" # 行说明：设置 MetalLB 共享 IP 时使用的一致性标识。
+  annotations: {} # 行说明：提供非 MetalLB 保留键的附加资源注解。
 
 # HTTP 客户（包括未来快照 Job）必须同时匹配 namespace 和 pod 标签。
-networkPolicy:
+networkPolicy: # 行说明：配置 Elasticsearch Pod 的入站和出站网络边界。
   # DNS 出站仅允许匹配集群 DNS 的 namespace 与 pod，禁止通用互联网出站。
-  dns:
-    namespaceSelector:
-      matchLabels:
-        kubernetes.io/metadata.name: kube-system
-    podSelector:
-      matchLabels:
-        k8s-app: kube-dns
-  authorizedPeers:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uino
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/name: elasticsearch-client
+  dns: # 行说明：限定 Elasticsearch 进行域名解析时可访问的 DNS Pod。
+    namespaceSelector: # 行说明：按命名空间标签限定允许通信的对象。
+      matchLabels: # 行说明：定义必须全部匹配的 Kubernetes 标签集合。
+        kubernetes.io/metadata.name: kube-system # 行说明：设置 kubernetes.io/metadata.name 配置项，供当前部署层级使用。
+    podSelector: # 行说明：按 Pod 标签限定允许通信的对象。
+      matchLabels: # 行说明：定义必须全部匹配的 Kubernetes 标签集合。
+        k8s-app: kube-dns # 行说明：设置 k8s-app 配置项，供当前部署层级使用。
+  authorizedPeers: # 行说明：列出获准访问 Elasticsearch HTTP 端口的客户端。
+    - namespaceSelector: # 行说明：按命名空间标签限定允许通信的对象。
+        matchLabels: # 行说明：定义必须全部匹配的 Kubernetes 标签集合。
+          kubernetes.io/metadata.name: uino # 行说明：设置 kubernetes.io/metadata.name 配置项，供当前部署层级使用。
+      podSelector: # 行说明：按 Pod 标签限定允许通信的对象。
+        matchLabels: # 行说明：定义必须全部匹配的 Kubernetes 标签集合。
+          app.kubernetes.io/name: elasticsearch-client # 行说明：设置 app.kubernetes.io/name 配置项，供当前部署层级使用。
 
 # 三个 ES 节点直接挂载同一 NFS export，并使用 clusterPath 隔离本集群快照目录。
-snapshot:
-  enabled: true
-  repositoryName: uino-es-snapshot
-  nfs:
-    server: ""
-    path: ""
-  mountPath: /mnt/es-snapshots
-  clusterPath: uino/es-cluster
-  slm:
-    enabled: true
-    name: uino-es-daily
-    schedule: "0 30 1 * * ?"
-    snapshotName: "<uino-es-snapshot-{now/d}>"
-    retention:
-      expireAfter: 30d
-      minCount: 5
-      maxCount: 50
+snapshot: # 行说明：配置共享 NFS 快照仓库和 SLM 生命周期策略。
+  enabled: true # 行说明：控制当前快照或 SLM 功能是否启用。
+  repositoryName: uino-es-snapshot # 行说明：设置注册到 Elasticsearch 的快照仓库名称。
+  nfs: # 行说明：指定所有 Worker 共同访问的 NFS export。
+    server: "" # 行说明：设置 NFS 服务端地址，必须可从每个 Worker 访问。
+    path: "" # 行说明：设置 NFS export 的绝对路径。
+  mountPath: /mnt/es-snapshots # 行说明：固定 NFS 在 Elasticsearch 容器内的挂载目录。
+  clusterPath: uino/es-cluster # 行说明：使用独立子目录隔离当前集群的快照数据。
+  slm: # 行说明：配置 Elasticsearch Snapshot Lifecycle Management 策略。
+    enabled: true # 行说明：控制当前快照或 SLM 功能是否启用。
+    name: uino-es-daily # 行说明：设置注册到 Elasticsearch 的 SLM 策略名称。
+    schedule: "0 30 1 * * ?" # 行说明：使用 Elasticsearch cron 表达式设置快照执行时间。
+    snapshotName: "<uino-es-snapshot-{now/d}>" # 行说明：定义定时快照名称及日期占位表达式。
+    retention: # 行说明：设置 SLM 自动清理历史快照的保留边界。
+      expireAfter: 30d # 行说明：设置快照超过该时长后可被清理。
+      minCount: 5 # 行说明：设置清理后必须保留的最少快照数量。
+      maxCount: 50 # 行说明：设置仓库允许保留的最大快照数量。
 
 # 留空时由 Chart 创建并保留凭据 Secret；填写后只引用客户预置 Secret。
-security:
-  existingCredentialsSecret: ""
+security: # 行说明：配置 Elasticsearch 管理员凭据 Secret 的来源。
+  existingCredentialsSecret: "" # 行说明：引用客户预置密码 Secret；留空时由 Chart 创建。
 
 # 留空时由 Chart 创建并保留 TLS Secret；填写后只引用客户预置证书。
-tls:
-  existingSecret: ""
+tls: # 行说明：配置 Elasticsearch HTTP 与 transport TLS 证书来源。
+  existingSecret: "" # 行说明：引用客户预置 TLS Secret；留空时由 Chart 创建。
 
 # Xms 与 Xmx 必须相同，防止运行期堆大小伸缩造成额外内存压力。
-heap: -Xms4g -Xmx4g
+heap: -Xms4g -Xmx4g # 行说明：设置 JVM 初始与最大堆，并要求 Xms 和 Xmx 相同。
 
 # ARM64 镜像只能调度到 ARM64 Worker。
-nodeSelector:
-  kubernetes.io/arch: arm64
+nodeSelector: # 行说明：将 Elasticsearch 和快照任务限定到匹配架构的 Worker。
+  kubernetes.io/arch: arm64 # 行说明：要求目标 Worker 的 CPU 架构与离线镜像一致。
 
 # 内存 limit 应高于 JVM heap，为文件缓存和进程本身保留空间。
-resources:
-  requests:
-    cpu: "2"
-    memory: 8Gi
-  limits:
-    cpu: "4"
-    memory: 8Gi
+resources: # 行说明：设置 Elasticsearch 容器的 CPU 和内存资源边界。
+  requests: # 行说明：声明调度时必须为容器预留的最小资源。
+    cpu: "2" # 行说明：设置调度时为 Elasticsearch 预留的 CPU 请求量。
+    memory: 8Gi # 行说明：设置调度时为 Elasticsearch 预留的内存请求量。
+  limits: # 行说明：声明容器允许运行时使用的最大资源。
+    cpu: "4" # 行说明：设置 Elasticsearch 容器可使用的 CPU 上限。
+    memory: 8Gi # 行说明：设置容器内存上限并为 JVM 堆外内存预留空间。

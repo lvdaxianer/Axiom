@@ -1,24 +1,24 @@
 {{- /* 文件说明：生成 Elasticsearch 安全通信配置，并在启用快照时声明共享仓库白名单。 */ -}}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "uino-elasticsearch.fullname" . }}-config
-  labels:
-    {{- include "uino-elasticsearch.labels" . | nindent 4 }}
-data:
-  elasticsearch.yml: |
-    cluster.name: {{ include "uino-elasticsearch.fullname" . }}
-    network.host: 0.0.0.0
-    xpack.security.enabled: true
-    xpack.security.transport.ssl.enabled: true
-    xpack.security.transport.ssl.verification_mode: certificate
-    xpack.security.transport.ssl.key: certs/tls.key
-    xpack.security.transport.ssl.certificate: certs/tls.crt
-    xpack.security.transport.ssl.certificate_authorities: [ "certs/ca.crt" ]
-    xpack.security.http.ssl.enabled: true
-    xpack.security.http.ssl.key: certs/tls.key
-    xpack.security.http.ssl.certificate: certs/tls.crt
-    xpack.security.http.ssl.certificate_authorities: [ "certs/ca.crt" ]
-    {{- if .Values.snapshot.enabled }}
-    path.repo: [ {{ .Values.snapshot.mountPath | quote }} ]
-    {{- end }}
+apiVersion: v1{{/* 行说明：指定 Kubernetes 或 Helm 使用的 API 版本。 */}}
+kind: ConfigMap{{/* 行说明：声明当前清单创建的 Kubernetes 资源类型。 */}}
+metadata:{{/* 行说明：配置 metadata 字段，形成 configmap.yaml 所需资源。 */}}
+  name: {{ include "uino-elasticsearch.fullname" . }}-config{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
+  labels:{{/* 行说明：配置 labels 字段，形成 configmap.yaml 所需资源。 */}}
+    {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- include "uino-elasticsearch.labels" . | nindent 4 }}
+data:{{/* 行说明：配置 data 字段，形成 configmap.yaml 所需资源。 */}}
+  elasticsearch.yml: |{{/* 行说明：配置 elasticsearch.yml 字段，形成 configmap.yaml 所需资源。 */}}
+    cluster.name: {{ include "uino-elasticsearch.fullname" . }}{{/* 行说明：使用 release 全名作为三个节点共同的 Elasticsearch 集群名。 */}}
+    network.host: 0.0.0.0{{/* 行说明：监听 Pod 内全部网络接口以接收 Service 和节点流量。 */}}
+    xpack.security.enabled: true{{/* 行说明：启用 Elasticsearch 用户认证和授权。 */}}
+    xpack.security.transport.ssl.enabled: true{{/* 行说明：启用节点 transport 通信 TLS。 */}}
+    xpack.security.transport.ssl.verification_mode: certificate{{/* 行说明：校验 transport 对端证书签发链而不强制匹配主机名。 */}}
+    xpack.security.transport.ssl.key: certs/tls.key{{/* 行说明：指定 transport TLS 使用的私钥文件。 */}}
+    xpack.security.transport.ssl.certificate: certs/tls.crt{{/* 行说明：指定 transport TLS 使用的节点证书文件。 */}}
+    xpack.security.transport.ssl.certificate_authorities: [ "certs/ca.crt" ]{{/* 行说明：指定验证 transport 对端证书的 CA 文件。 */}}
+    xpack.security.http.ssl.enabled: true{{/* 行说明：启用 Elasticsearch HTTP 接口 TLS。 */}}
+    xpack.security.http.ssl.key: certs/tls.key{{/* 行说明：指定 HTTP TLS 使用的私钥文件。 */}}
+    xpack.security.http.ssl.certificate: certs/tls.crt{{/* 行说明：指定 HTTP TLS 使用的服务证书文件。 */}}
+    xpack.security.http.ssl.certificate_authorities: [ "certs/ca.crt" ]{{/* 行说明：指定 HTTP TLS 信任的 CA 文件。 */}}
+    {{- /* 行说明：仅在该 Helm 条件成立时渲染后续内容。 */}}{{- if .Values.snapshot.enabled }}
+    path.repo: [ {{ .Values.snapshot.mountPath | quote }} ]{{/* 行说明：允许 Elasticsearch 将该 NFS 挂载路径注册为文件系统快照仓库。 */}}
+    {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}{{- end }}

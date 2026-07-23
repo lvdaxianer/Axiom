@@ -33,8 +33,31 @@ def has_chinese(value: object) -> bool:
     )
 
 
+def validate_property_descriptions(definition: dict, path: str) -> None:
+    """递归校验一个 Schema 分支中的命名配置属性。
+
+    Args:
+        definition: 当前 JSON Schema 定义。
+        path: 当前配置路径。
+
+    Returns:
+        无返回值，缺少中文说明时抛出 AssertionError。
+
+    Author: lvdaxianer@yeah.net
+    Date: 2026-07-21
+    """
+    for name, child in definition.get("properties", {}).items():
+        child_path = f"{path}.{name}" if path else name
+        assert has_chinese(child.get("description")), f"{child_path} 缺少中文 description"
+        validate_property_descriptions(child, child_path)
+    items = definition.get("items")
+    # 数组元素仍是 Schema 对象时继续递归，标量数组无需属性说明。
+    if isinstance(items, dict):
+        validate_property_descriptions(items, f"{path}[]")
+
+
 def validate_schema(path: str) -> None:
-    """校验 Schema 顶层和全部一级配置组的中文说明。
+    """校验 Schema 顶层、完整配置树和公共定义的中文说明。
     Args:
         path: values.schema.json 文件路径。
     Returns:
@@ -46,9 +69,11 @@ def validate_schema(path: str) -> None:
     with open(path, encoding="utf-8") as schema_file:
         schema = json.load(schema_file)
     assert has_chinese(schema.get("description")), "顶层缺少中文 description"
-    # 动态遍历 properties，未来新增的一级配置组也会自动进入审计。
-    for name, definition in schema["properties"].items():
-        assert has_chinese(definition.get("description")), f"{name} 缺少中文 description"
+    # 动态遍历配置树和公共定义，未来新增字段也会自动进入审计。
+    validate_property_descriptions(schema, "")
+    for name, definition in schema.get("$defs", {}).items():
+        assert has_chinese(definition.get("description")), f"$defs.{name} 缺少中文 description"
+        validate_property_descriptions(definition, f"$defs.{name}")
 
 
 def main() -> None:
