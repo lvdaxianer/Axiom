@@ -2,20 +2,19 @@ server:
   port: 9443
   ssl:
     enabled: true
-    certificate: /etc/uino-discovery/pki/server.crt
-    certificate-private-key: /etc/uino-discovery/pki/server.key
-    trust-certificate: /etc/uino-discovery/pki/ca.crt
+    certificate: /etc/affinityroute/pki/server.crt
+    certificate-private-key: /etc/affinityroute/pki/server.key
+    trust-certificate: /etc/affinityroute/pki/ca.crt
 
 spring:
   application:
-    name: uino-discovery-registry
+    name: affinityroute-registry
 
-uino:
-  discovery:
+affinityroute:
     registry:
       node-id: registry-01
       advertised-address: registry-01.example.internal
-      data-directory: /var/lib/uino-discovery/registry-01
+      data-directory: /var/lib/affinityroute/registry-01
       peers:
         - node-id: registry-01
           address: registry-01.example.internal:9858
@@ -59,12 +58,12 @@ uino:
             thread-name-prefix: registry-health-probe-
       security:
         node-mtls-enabled: true
-        client-ca: /etc/uino-discovery/pki/ca.crt
+        client-ca: /etc/affinityroute/pki/ca.crt
         token-ttl: 15m
-        token-signing-private-key: /etc/uino-discovery/secrets/token-signing.key
-        token-verification-certificate: /etc/uino-discovery/pki/token-signing.crt
-        session-signing-key-file: /etc/uino-discovery/secrets/session-signing.key
-        bootstrap-admin-password-file: /etc/uino-discovery/secrets/admin-initial-password
+        token-signing-private-key: /etc/affinityroute/secrets/token-signing.key
+        token-verification-certificate: /etc/affinityroute/pki/token-signing.crt
+        session-signing-key-file: /etc/affinityroute/secrets/session-signing.key
+        bootstrap-admin-password-file: /etc/affinityroute/secrets/admin-initial-password
         login-rate-limit:
           max-failures: 5
           lock-duration: 15m

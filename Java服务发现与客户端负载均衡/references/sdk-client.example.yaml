@@ -2,20 +2,19 @@ spring:
   application:
     name: yunkan
 
-uino:
-  discovery:
+affinityroute:
     enabled: true
     scope:
       namespace: customer-a-prod
-      group: UINO_THING
+      group: DEFAULT_GROUP
     registry:
       endpoints:
         - https://registry-01.example.internal:9443
         - https://registry-02.example.internal:9443
         - https://registry-03.example.internal:9443
       client-id: yunkan
-      secret-file: /etc/uino-discovery/secrets/client-secret
-      ca-certificate: /etc/uino-discovery/pki/ca.crt
+      secret-file: /etc/affinityroute/secrets/client-secret
+      ca-certificate: /etc/affinityroute/pki/ca.crt
       connect-timeout: 2s
       request-timeout: 5s
     snapshot:

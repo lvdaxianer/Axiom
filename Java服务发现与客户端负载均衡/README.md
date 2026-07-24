@@ -1,6 +1,6 @@
-# Java 服务发现与客户端负载均衡实现方案
+# AffinityRoute：Java 服务发现与客户端负载均衡实现方案
 
-本文给出一套可以直接进入研发的 Java 服务发现、客户端负载均衡和统一管理控制台方案。系统面向云瞰调用 Topo、森大屏等产品的场景，以逻辑服务名替代固定 `IP + 端口 + URL`，在调用方 JVM 内完成 ID 亲和选址、故障转移、超时、重试和本地隔离。
+AffinityRoute 是面向 Java 应用的开源服务发现、客户端负载均衡和统一管理控制台。系统面向云瞰调用 Topo、森大屏等产品的场景，以逻辑服务名替代固定 `IP + 端口 + URL`，在调用方 JVM 内完成 ID 亲和选址、故障转移、超时、重试和本地隔离。
 
 方案基线：
 
@@ -176,16 +176,37 @@ Consumer JVM ───── HTTPS 业务请求 ───────► Provide
 
 ## 4. 代码架构
 
-### 4.1 工程目录
+### 4.1 开源项目命名
+
+| 项目 | 固定名称 |
+| --- | --- |
+| 项目品牌 | `AffinityRoute` |
+| GitHub仓库 | `lvdaxianerplus/affinity-route` |
+| GitHub地址 | `https://github.com/lvdaxianerplus/affinity-route` |
+| GitHub Description | `Java-first service discovery and client-side load balancing with affinity routing, weighted balancing, deterministic failover, and resilient HTTP calls.` |
+| 所属域名 | `lvdaxianerplus.cc` |
+| Maven GroupId | `cc.lvdaxianerplus.affinityroute` |
+| Java根包 | `cc.lvdaxianerplus.affinityroute` |
+| Spring配置前缀 | `affinityroute` |
+| Linux配置目录 | `/etc/affinityroute` |
+| Linux数据目录 | `/var/lib/affinityroute` |
+| systemd服务名 | `affinityroute-registry` |
+| 指标前缀 | `affinityroute_` |
+
+Java包名按域名反写，因此必须使用 `cc.lvdaxianerplus.affinityroute`，禁止使用 `lvdaxianerplus.cc.affinityroute`。发布到 Maven Central 时，所有公开构件统一使用上述 GroupId，ArtifactId统一使用 `affinityroute-` 前缀。首次发布前需要在 Central Portal 通过 `lvdaxianerplus.cc` 的 DNS记录验证 `cc.lvdaxianerplus` namespace所有权。
+
+### 4.2 工程目录
 
 实际产品代码建议建立独立 Maven reactor：
 
 ```text
-java-service-discovery/
+affinity-route/
 ├── pom.xml
 ├── .mvn/
 │   └── maven.config
+├── affinityroute-bom/
 ├── sdk-api/
+├── sdk-bundle/
 ├── registry-protocol/
 ├── registry-ratis/
 ├── registry-server/
@@ -207,25 +228,30 @@ java-service-discovery/
 └── distribution/
 ```
 
-### 4.2 模块职责
+### 4.3 模块坐标与职责
 
-| 模块 | 职责 | 允许依赖 |
-| --- | --- | --- |
-| `sdk-api` | 对业务公开的稳定 Client、模型和异常 | JDK、必要注解 |
-| `registry-protocol` | REST/SSE wire DTO、命令和错误码 | Jackson、校验 API |
-| `registry-ratis` | 状态机、日志命令、快照、Ratis适配 | `registry-protocol`、Ratis |
-| `registry-server` | 注册、租约、健康检查、REST/SSE、安全 | protocol、ratis、Spring Boot |
-| `registry-client` | Provider注册和 Consumer目录同步 | sdk-api、protocol |
-| `lb-core` | 加权 HRW、最少并发、候选计划 | sdk-api |
-| `lb-http-client` | deadline、重试、隔离、连接池、HTTP | sdk-api、lb-core、HttpClient 5 |
-| `registry-static` | 固定 URL 映射为 `DiscoveryClient` | sdk-api |
-| `lb-spring-boot-starter` | 自动配置和生命周期组装 | 所有 SDK实现模块、Spring Boot |
-| `console-api` | 控制台 REST/SSE、RBAC、审批、Client目录 | registry-server内部应用接口 |
-| `observability-prometheus` | Prometheus Query 适配和降级 | Prometheus HTTP API |
-| `console-web` | Vue 3 管理控制台 | console-api |
-| `distribution` | 离线包、脚本、证书、systemd和文档 | 构建产物 |
+| 模块目录 | Maven ArtifactId | Java包 | 职责 |
+| --- | --- | --- | --- |
+| 根工程 | `affinityroute-parent` | 不适用 | Reactor父工程和插件管理 |
+| `affinityroute-bom` | `affinityroute-bom` | 不适用 | 对外依赖版本清单 |
+| `sdk-api` | `affinityroute-sdk-api` | `cc.lvdaxianerplus.affinityroute.api` | 对业务公开的 Client、模型和异常 |
+| `sdk-bundle` | `affinityroute-sdk` | 不适用 | 普通 Java应用的一站式依赖聚合 |
+| `registry-protocol` | `affinityroute-registry-protocol` | `cc.lvdaxianerplus.affinityroute.protocol` | REST/SSE wire DTO、命令和错误码 |
+| `registry-ratis` | `affinityroute-registry-ratis` | `cc.lvdaxianerplus.affinityroute.registry.ratis` | 状态机、快照和 Ratis适配 |
+| `registry-server` | `affinityroute-registry-server` | `cc.lvdaxianerplus.affinityroute.registry.server` | 注册、租约、健康、REST/SSE和安全 |
+| `registry-client` | `affinityroute-registry-client` | `cc.lvdaxianerplus.affinityroute.client` | Provider注册和 Consumer目录同步 |
+| `lb-core` | `affinityroute-loadbalancer-core` | `cc.lvdaxianerplus.affinityroute.loadbalancer` | 加权 HRW、最少并发和候选计划 |
+| `lb-http-client` | `affinityroute-http-client` | `cc.lvdaxianerplus.affinityroute.http` | deadline、重试、隔离和 HTTP调用 |
+| `registry-static` | `affinityroute-static-discovery` | `cc.lvdaxianerplus.affinityroute.staticdiscovery` | 固定 URL映射为 `DiscoveryClient` |
+| `lb-spring-boot-starter` | `affinityroute-spring-boot-starter` | `cc.lvdaxianerplus.affinityroute.starter` | Spring Boot自动配置和生命周期组装 |
+| `console-api` | `affinityroute-console-api` | `cc.lvdaxianerplus.affinityroute.console` | 控制台 API、RBAC、审批和 Client目录 |
+| `observability-prometheus` | `affinityroute-observability-prometheus` | `cc.lvdaxianerplus.affinityroute.observability.prometheus` | Prometheus Query适配和降级 |
+| `console-web` | `affinityroute-console-web` | 不适用 | Vue 3管理控制台 |
+| `distribution` | `affinityroute-distribution` | 不适用 | 离线包、脚本、证书、systemd和文档 |
 
-### 4.3 依赖方向
+`cc.lvdaxianerplus.affinityroute.api` 及其子包是唯一承诺语义化版本兼容的公共 Java API。其他模块包默认属于实现边界，业务代码不得直接依赖 `internal` 子包。不同 Artifact不得声明同一个 Java package，避免 split package；公共类型移动或改名必须通过 Revapi或 japicmp兼容门禁。
+
+### 4.4 依赖方向
 
 ```text
 sdk-api                           registry-protocol
@@ -248,7 +274,7 @@ sdk-api                           registry-protocol
 - `registry-server` 不依赖 Consumer 负载均衡实现。
 - `console-web` 不直接调用 Prometheus、Raft或内部管理对象。
 
-### 4.4 编码约束
+### 4.5 编码约束
 
 实现阶段统一遵守以下约束：
 
@@ -263,10 +289,10 @@ sdk-api                           registry-protocol
 - 异常转换保留 cause，不捕获 `Throwable` 或宽泛 `Exception` 后静默吞掉。
 - Vue Route Page保持薄层，feature组件职责单一，Props Down / Events Up，副作用放入 composable。
 
-### 4.5 公共包结构
+### 4.6 公共包结构
 
 ```text
-sdk-api/src/main/java/com/uino/discovery/api/
+sdk-api/src/main/java/cc/lvdaxianerplus/affinityroute/api/
 ├── client/
 │   ├── ProviderClient.java
 │   ├── DiscoveryClient.java
@@ -304,7 +330,7 @@ sdk-api/src/main/java/com/uino/discovery/api/
     └── ClientClosedException.java
 ```
 
-### 4.6 技术选型与版本策略
+### 4.7 技术选型与版本策略
 
 | 领域 | 选型 | 约束 |
 | --- | --- | --- |
@@ -636,14 +662,14 @@ HALF_OPEN
 
 ### 5.10 SDK 发布与 Spring Boot 接入
 
-SDK以公司 Maven仓库中的 BOM 和 Starter 交付。首个开发版本使用以下坐标，稳定发布时只替换版本号：
+SDK的 BOM、普通 Java聚合依赖和 Starter发布到 Maven Central，Registry与离线发行包发布到 GitHub Releases。首个开发版本使用以下坐标，稳定发布时只替换版本号：
 
 ```xml
 <dependencyManagement>
   <dependencies>
     <dependency>
-      <groupId>com.uino.discovery</groupId>
-      <artifactId>uino-discovery-bom</artifactId>
+      <groupId>cc.lvdaxianerplus.affinityroute</groupId>
+      <artifactId>affinityroute-bom</artifactId>
       <version>1.0.0-SNAPSHOT</version>
       <type>pom</type>
       <scope>import</scope>
@@ -651,15 +677,27 @@ SDK以公司 Maven仓库中的 BOM 和 Starter 交付。首个开发版本使用
   </dependencies>
 </dependencyManagement>
 
-<dependencies>
-  <dependency>
-    <groupId>com.uino.discovery</groupId>
-    <artifactId>uino-discovery-spring-boot-starter</artifactId>
-  </dependency>
-</dependencies>
 ```
 
-Starter通过 `@ConfigurationProperties(prefix = "uino.discovery")` 绑定配置，并在条件满足时提供四个公共 Client Bean。业务方自定义同类型 Bean 时，自动配置使用 `@ConditionalOnMissingBean` 退让。生命周期顺序固定为：
+普通 Java应用增加：
+
+```xml
+<dependency>
+  <groupId>cc.lvdaxianerplus.affinityroute</groupId>
+  <artifactId>affinityroute-sdk</artifactId>
+</dependency>
+```
+
+Spring Boot应用改用 Starter，不再重复声明 `affinityroute-sdk`：
+
+```xml
+<dependency>
+  <groupId>cc.lvdaxianerplus.affinityroute</groupId>
+  <artifactId>affinityroute-spring-boot-starter</artifactId>
+</dependency>
+```
+
+Starter通过 `@ConfigurationProperties(prefix = "affinityroute")` 绑定配置，并在条件满足时提供四个公共 Client Bean。业务方自定义同类型 Bean 时，自动配置使用 `@ConditionalOnMissingBean` 退让。生命周期顺序固定为：
 
 ```text
 创建 HTTP连接池
@@ -677,7 +715,7 @@ Starter通过 `@ConfigurationProperties(prefix = "uino.discovery")` 绑定配置
   → 关闭 HTTP连接池
 ```
 
-不使用 Spring Boot 的应用直接依赖 `sdk-api`、`registry-client`、`lb-core` 和 `lb-http-client`，通过 `DiscoveryClients.builder()` 显式组装；两种接入方式必须复用相同实现，不能维护两套行为。
+不使用 Spring Boot 的应用由 `affinityroute-sdk` 聚合 `sdk-api`、`registry-client`、`lb-core` 和 `lb-http-client`，并通过 `DiscoveryClients.builder()` 显式组装；两种接入方式必须复用相同实现，不能维护两套行为。
 
 ## 6. 注册中心实现
 
@@ -773,7 +811,7 @@ Content-Type: application/json
 {
   "service": {
     "namespace": "customer-a-prod",
-    "group": "UINO_THING",
+    "group": "DEFAULT_GROUP",
     "serviceName": "topo-service"
   },
   "instanceId": "topo-node-01",
@@ -804,7 +842,7 @@ Content-Type: application/json
   "schemaVersion": 1,
   "service": {
     "namespace": "customer-a-prod",
-    "group": "UINO_THING",
+    "group": "DEFAULT_GROUP",
     "serviceName": "topo-service"
   },
   "revision": 1024,
@@ -973,7 +1011,7 @@ SDK默认每 15 秒上报轻量心跳：
   "sdkVersion": "<sdk-version>",
   "javaVersion": "17",
   "namespace": "customer-a-prod",
-  "group": "UINO_THING",
+  "group": "DEFAULT_GROUP",
   "snapshotRevision": 1024,
   "snapshotAgeSeconds": 3,
   "registryConnectionState": "CONNECTED",
@@ -1104,7 +1142,7 @@ REST路径使用主版本 `/api/v1`。JSON增加字段必须向后兼容；删�
   "schemaVersion": 1,
   "revision": 1024,
   "type": "INSTANCE_HEALTH_CHANGED",
-  "serviceKey": "customer-a-prod/UINO_THING/topo-service",
+  "serviceKey": "customer-a-prod/DEFAULT_GROUP/topo-service",
   "resourceId": "topo-node-01"
 }
 ```
@@ -1155,7 +1193,7 @@ REST路径使用主版本 `/api/v1`。JSON增加字段必须向后兼容；删�
 ### 9.4 构建
 
 ```bash
-cd java-service-discovery
+cd affinity-route
 mvn -T1C clean verify
 cd console-web
 npm ci
@@ -1200,15 +1238,15 @@ mvn -pl distribution -am package -Poffline
 ### 9.7 启动顺序
 
 ```bash
-./distribution/bin/preflight.sh --config /etc/uino-discovery/registry.yaml
-systemctl enable registry-server@registry-01
-systemctl start registry-server@registry-01
+./distribution/bin/preflight.sh --config /etc/affinityroute/registry.yaml
+systemctl enable affinityroute-registry@registry-01
+systemctl start affinityroute-registry@registry-01
 ```
 
 三个节点均启动后检查：
 
 ```bash
-curl --cacert /etc/uino-discovery/pki/ca.crt \
+curl --cacert /etc/affinityroute/pki/ca.crt \
   https://registry.example.internal:9443/actuator/health
 ```
 
@@ -1344,18 +1382,20 @@ mvn -pl performance-tests verify -Ptarget-scale
 建议重点指标：
 
 ```text
-registry_raft_writable
-registry_raft_commit_latency_seconds
-registry_catalog_revision
-registry_sse_connections
-registry_sse_delivery_latency_seconds
-discovery_client_connected
-discovery_snapshot_age_seconds
-lb_requests_total
-lb_request_duration_seconds
-lb_retries_total
-lb_local_ejections
-lb_no_available_instance_total
+affinityroute_registry_raft_writable
+affinityroute_registry_raft_commit_latency_seconds
+affinityroute_registry_raft_log_lag_entries
+affinityroute_registry_catalog_revision
+affinityroute_registry_sse_connections
+affinityroute_registry_sse_delivery_latency_seconds
+affinityroute_registry_sse_delivery_latency_seconds_bucket
+affinityroute_client_connected
+affinityroute_client_snapshot_age_seconds
+affinityroute_lb_requests_total
+affinityroute_lb_request_duration_seconds
+affinityroute_lb_retries_total
+affinityroute_lb_local_ejections
+affinityroute_lb_no_available_instance_total
 ```
 
 ## 13. 实施计划
@@ -1366,18 +1406,18 @@ lb_no_available_instance_total
 
 | 任务 | 主要文件 | 首个失败测试 | 聚焦验证命令 |
 | --- | --- | --- | --- |
-| T01 工程与契约 | `pom.xml`、`sdk-api/src/main/java/com/uino/discovery/api/**`、`registry-protocol/src/main/java/com/uino/discovery/protocol/**` | `architecture-tests/src/test/java/com/uino/discovery/architecture/ModuleDependencyTest.java` | `mvn -pl architecture-tests -am test` |
-| T02 负载算法 | `lb-core/src/main/java/com/uino/discovery/lb/**` | `lb-core/src/test/java/com/uino/discovery/lb/WeightedRendezvousHashTest.java`、`WeightedLeastConcurrencyTest.java` | `mvn -pl lb-core -am test` |
-| T03 目录状态机 | `registry-ratis/src/main/java/com/uino/discovery/ratis/catalog/**` | `registry-ratis/src/test/java/com/uino/discovery/ratis/catalog/CatalogStateMachineTest.java` | `mvn -pl registry-ratis -am test` |
-| T04 Ratis适配 | `registry-ratis/src/main/java/com/uino/discovery/ratis/consensus/**` | `registry-ratis/src/test/java/com/uino/discovery/ratis/consensus/ThreeNodeConsensusTest.java` | `mvn -pl registry-ratis -am verify` |
-| T05 注册与健康 | `registry-server/src/main/java/com/uino/discovery/registry/registration/**`、`health/**` | `registry-server/src/test/java/com/uino/discovery/registry/registration/LeaseLifecycleTest.java` | `mvn -pl registry-server -am test` |
-| T06 REST/SSE与安全 | `registry-server/src/main/java/com/uino/discovery/registry/api/**`、`security/**`、`events/**` | `registry-server/src/test/java/com/uino/discovery/registry/api/RegistryContractTest.java` | `mvn -pl registry-server -am verify` |
-| T07 Provider与Discovery | `registry-client/src/main/java/com/uino/discovery/client/**` | `registry-client/src/test/java/com/uino/discovery/client/DiscoveryRecoveryTest.java` | `mvn -pl registry-client -am verify` |
-| T08 HTTP治理 | `lb-http-client/src/main/java/com/uino/discovery/http/**` | `lb-http-client/src/test/java/com/uino/discovery/http/RetryDeadlineTest.java`、`LocalEjectionTest.java` | `mvn -pl lb-http-client -am verify` |
-| T09 Starter与迁移 | `lb-spring-boot-starter/src/**`、`registry-static/src/**`、`examples/**` | `lb-spring-boot-starter/src/test/java/com/uino/discovery/starter/DiscoveryAutoConfigurationTest.java` | `mvn -pl lb-spring-boot-starter,examples -am verify` |
-| T10 控制台后端 | `console-api/src/**`、`observability-prometheus/src/**` | `console-api/src/test/java/com/uino/discovery/console/ApprovalWorkflowTest.java` | `mvn -pl console-api,observability-prometheus -am verify` |
+| T01 工程与契约 | `pom.xml`、`sdk-api/src/main/java/cc/lvdaxianerplus/affinityroute/api/**`、`registry-protocol/src/main/java/cc/lvdaxianerplus/affinityroute/protocol/**` | `architecture-tests/src/test/java/cc/lvdaxianerplus/affinityroute/architecture/ModuleDependencyTest.java` | `mvn -pl architecture-tests -am test` |
+| T02 负载算法 | `lb-core/src/main/java/cc/lvdaxianerplus/affinityroute/loadbalancer/**` | `lb-core/src/test/java/cc/lvdaxianerplus/affinityroute/loadbalancer/WeightedRendezvousHashTest.java`、`WeightedLeastConcurrencyTest.java` | `mvn -pl lb-core -am test` |
+| T03 目录状态机 | `registry-ratis/src/main/java/cc/lvdaxianerplus/affinityroute/registry/ratis/catalog/**` | `registry-ratis/src/test/java/cc/lvdaxianerplus/affinityroute/registry/ratis/catalog/CatalogStateMachineTest.java` | `mvn -pl registry-ratis -am test` |
+| T04 Ratis适配 | `registry-ratis/src/main/java/cc/lvdaxianerplus/affinityroute/registry/ratis/consensus/**` | `registry-ratis/src/test/java/cc/lvdaxianerplus/affinityroute/registry/ratis/consensus/ThreeNodeConsensusTest.java` | `mvn -pl registry-ratis -am verify` |
+| T05 注册与健康 | `registry-server/src/main/java/cc/lvdaxianerplus/affinityroute/registry/server/registration/**`、`health/**` | `registry-server/src/test/java/cc/lvdaxianerplus/affinityroute/registry/server/registration/LeaseLifecycleTest.java` | `mvn -pl registry-server -am test` |
+| T06 REST/SSE与安全 | `registry-server/src/main/java/cc/lvdaxianerplus/affinityroute/registry/server/api/**`、`security/**`、`events/**` | `registry-server/src/test/java/cc/lvdaxianerplus/affinityroute/registry/server/api/RegistryContractTest.java` | `mvn -pl registry-server -am verify` |
+| T07 Provider与Discovery | `registry-client/src/main/java/cc/lvdaxianerplus/affinityroute/client/**` | `registry-client/src/test/java/cc/lvdaxianerplus/affinityroute/client/DiscoveryRecoveryTest.java` | `mvn -pl registry-client -am verify` |
+| T08 HTTP治理 | `lb-http-client/src/main/java/cc/lvdaxianerplus/affinityroute/http/**` | `lb-http-client/src/test/java/cc/lvdaxianerplus/affinityroute/http/RetryDeadlineTest.java`、`LocalEjectionTest.java` | `mvn -pl lb-http-client -am verify` |
+| T09 Starter与迁移 | `lb-spring-boot-starter/src/**`、`registry-static/src/**`、`examples/**` | `lb-spring-boot-starter/src/test/java/cc/lvdaxianerplus/affinityroute/starter/AffinityRouteAutoConfigurationTest.java` | `mvn -pl lb-spring-boot-starter,examples -am verify` |
+| T10 控制台后端 | `console-api/src/**`、`observability-prometheus/src/**` | `console-api/src/test/java/cc/lvdaxianerplus/affinityroute/console/ApprovalWorkflowTest.java` | `mvn -pl console-api,observability-prometheus -am verify` |
 | T11 控制台前端 | `console-web/src/**`、`console-web/tests/**` | `console-web/src/features/service-catalog/ServicesTable.spec.ts`、`console-web/tests/critical-flow.spec.ts` | `npm --prefix console-web run typecheck && npm --prefix console-web run test && npm --prefix console-web run test:e2e` |
-| T12 发行与验收 | `distribution/**`、`system-tests/**`、`performance-tests/**` | `system-tests/src/test/java/com/uino/discovery/system/RegistryFailoverTest.java` | `mvn -pl system-tests,performance-tests,distribution -am verify -Ptarget-scale,offline` |
+| T12 发行与验收 | `distribution/**`、`system-tests/**`、`performance-tests/**` | `system-tests/src/test/java/cc/lvdaxianerplus/affinityroute/system/RegistryFailoverTest.java` | `mvn -pl system-tests,performance-tests,distribution -am verify -Ptarget-scale,offline` |
 
 每个任务的固定执行顺序为：新增单一行为测试并确认按预期失败，完成最小实现，运行聚焦命令，再运行 `mvn -T1C verify`；涉及前端时追加 typecheck、Vitest、构建和 Playwright。随后核对本节交付标准、执行完整 diff审查并提交。任何公共 API、wire schema、配置键或指标名变更都必须同步兼容性测试和示例配置。
 
