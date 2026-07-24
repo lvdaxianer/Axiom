@@ -181,8 +181,8 @@ Consumer JVM ───── HTTPS 业务请求 ───────► Provide
 | 项目 | 固定名称 |
 | --- | --- |
 | 项目品牌 | `AffinityRoute` |
-| GitHub仓库 | `lvdaxianerplus/affinity-route` |
-| GitHub地址 | `https://github.com/lvdaxianerplus/affinity-route` |
+| GitHub仓库 | `lvdaxianer/affinity-route` |
+| GitHub地址 | `https://github.com/lvdaxianer/affinity-route` |
 | GitHub Description | `Java-first service discovery and client-side load balancing with affinity routing, weighted balancing, deterministic failover, and resilient HTTP calls.` |
 | 所属域名 | `lvdaxianerplus.cc` |
 | Maven GroupId | `cc.lvdaxianerplus.affinityroute` |
@@ -343,6 +343,38 @@ sdk-api/src/main/java/cc/lvdaxianerplus/affinityroute/api/
 | 测试 | JUnit 5、AssertJ、Testcontainers、Toxiproxy、Vitest、Playwright | 单元、组件、系统和故障测试分层执行 |
 
 父 POM 必须通过 dependencyManagement 锁定直接依赖和插件版本，并使用 Maven Enforcer 禁止依赖收敛冲突、低于 JDK 17 的构建环境和动态版本。前端必须提交 lockfile 并在 CI 使用 `npm ci`。
+
+### 4.8 为什么不直接使用 Nacos
+
+Nacos是成熟的动态服务发现、配置管理和服务治理平台，官方提供服务注册、健康检查、权重路由、管理界面及主流微服务生态集成。如果需求只是“把固定 IP改成可动态发现的实例列表”，直接部署 Nacos的交付风险和长期维护成本都更低，不应为了自研而自研。
+
+本项目需要评估三条路线：
+
+| 路线 | 优点 | 代价 | 适用条件 |
+| --- | --- | --- | --- |
+| 直接使用 Nacos | 产品成熟、社区活跃、功能完整、运维经验多 | ID亲和、确定性备用序列、调用级 deadline/重试/隔离仍需自研 SDK | 已有 Nacos平台，或只需要标准注册发现 |
+| Nacos作为目录后端，复用 AffinityRoute SDK | 快速获得成熟控制面，同时保留亲和路由和 HTTP治理 | 需要维护 Nacos语义适配、版本兼容和两套管理视图 | 客户环境允许部署 Nacos，团队接受其运维模型 |
+| Ratis原生最小 Registry | 数据模型、一致性契约、离线包和控制台完全可控；只实现本项目所需能力 | 共识、安全、升级、备份、故障恢复都由项目承担，研发和验证成本最高 | 需要单一离线发行包、精确一致性语义和端到端统一治理 |
+
+AffinityRoute首版选择第三条路线，理由不是 Nacos无法完成服务发现，而是以下差异需要形成一个可独立验证的整体：
+
+1. ID亲和使用加权 Rendezvous Hash，并要求主实例故障后得到稳定的备用序列。
+2. 一次业务调用固定一个目录 revision，重试、并发许可、本地隔离和结果反馈属于同一个 SDK调用模型。
+3. 控制面只保留服务目录、权限、审批和观测，不引入通用配置中心等额外产品能力。
+4. 交付物需要在离线客户环境中形成单一版本、单一控制台和可重复的故障验收。
+5. 持久目录、Leader内存租约、SDK缓存和本地隔离分别声明一致性级别，不能用“最终会同步”代替契约。
+
+这仍然属于有条件的自研决策，而不是不可逆绑定。公共 `ProviderClient`、`DiscoveryClient` 和 `LoadBalancerClient` 不暴露 Ratis类型；`registry-client` 通过 `RegistrationTransport`、`CatalogTransport` 适配控制面。若采用第二条路线，可增加 `affinityroute-nacos-adapter`，但不改变负载算法和业务调用 API。
+
+原生 Registry有以下退出条件，任一条件在首个生产版本前无法满足，就停止扩大自研范围，优先切换为 Nacos后端或其他成熟注册中心：
+
+- 无法通过单节点故障、Leader切换、少数派拒写和崩溃恢复测试。
+- 无法证明已确认写入在单节点故障后不丢失，或线性读可能返回旧值。
+- 200个服务、2,000个实例和目标 Client规模下无法达到容量门禁。
+- 安全审查、依赖升级、备份恢复或离线运维成本超过团队长期承受能力。
+- 项目维护者不足以持续负责 Ratis兼容、安全修复和跨版本升级。
+
+因此，本方案的核心差异是 AffinityRoute SDK和亲和路由语义；原生 Registry是默认控制面实现，不是项目必须永久维护的唯一后端。
 
 ## 5. SDK Client 实现
 
@@ -758,9 +790,85 @@ ServiceInstance
 
 每个命令携带 commandId。状态机保存有限去重窗口，相同 commandId 返回原结果，不重复产生事件。
 
-每个改变可见目录的命令生成单调递增 `directoryRevision`。状态机不得读取系统时钟、访问网络或执行磁盘之外的副作用，保证所有节点确定性回放。
+每个改变可见目录的命令只递增受影响 `ServiceKey` 的 `directoryRevision`；Raft `appliedIndex` 表示集群全局已应用位置。这避免其他服务的变更在当前服务事件流中被误判为缺口。一条命令若原子影响多个 `ServiceKey`，状态机分别递增其版本并生成各自事件。状态机不得读取系统时钟、访问网络或执行磁盘之外的副作用，保证所有节点确定性回放。
 
-### 6.3 租约
+### 6.3 数据一致性模型
+
+系统不对所有数据笼统宣称“强一致”。不同数据按业务风险选择不同一致性级别：
+
+| 数据类别 | 权威位置 | 一致性级别 | 故障时行为 |
+| --- | --- | --- | --- |
+| 服务定义、静态实例、已提交临时实例、权重、全局健康状态 | Raft状态机 | `LINEARIZABLE`写；管理读默认`LINEARIZABLE` | 失去多数派拒绝写和线性读 |
+| 身份、权限、审批、审计索引 | Raft状态机 | `LINEARIZABLE`写；鉴权读不得落后于已确认权限变更 | 失去多数派拒绝安全敏感变更 |
+| Provider租约、SDK Client在线心跳 | Leader内存 | `LEADER_LOCAL`，不承诺跨Leader瞬时一致 | Leader切换后进入宽限期并等待重新上报 |
+| SDK服务目录 | Consumer内存和磁盘快照 | `MONOTONIC`单调读、最终追上已提交目录 | 控制面失联时保留最后有效 revision |
+| SDK本地隔离、活跃并发 | 单个 Consumer JVM | `PROCESS_LOCAL` | 不向其他 JVM伪装成全局状态 |
+
+#### 6.3.1 写入提交与确认
+
+所有持久控制面写入只接受 Leader执行，Follower内部转发或返回 Leader提示。Leader追加日志前先完成令牌签名、请求结构和静态范围检查；对可变 RBAC状态的授权判定与业务命令一起在状态机中按日志顺序复核，防止已提交的撤权与并发写入穿透。写入时序固定为：
+
+```text
+校验身份与命令格式
+  → Leader追加 Raft日志
+  → 多数派将日志持久化并提交
+  → 各节点按相同顺序应用确定性状态机
+  → 状态机内统一检查可变权限、commandId 和 If-Match
+  → 状态机确定性生成并原子保存 resourceVersion、directoryRevision、事件和命令结果
+  → Leader等待本地应用完成并返回已保存结果
+```
+
+HTTP成功只能在该命令日志达到 Raft `commitIndex` 且 Leader本地 `appliedIndex`已越过该命令 index后返回。`If-Match`、幂等判定和版本号分配不能只在 Leader追加日志前执行，否则并发命令会绕过状态机的顺序化保证。版本号必须由已应用状态和当前日志 index确定性推导，不依赖 Leader本地时钟或随机数。
+
+客户端超时不等于写入失败：使用相同 `X-Command-Id` 和相同规范化请求摘要重试时，必须得到第一次命令的结果，不得重复产生实例、revision或审计事件。相同 `commandId` 携带不同摘要时返回 HTTP 409和 `COMMAND_ID_CONFLICT`，不得执行新请求或伪装成成功。
+
+去重记录按数量和时间双重有界保留，服务端必须公开最小去重保证期和容量。状态机不直接读时钟：Leader定期提交带单调截止值的 `ExpireCommandResults`命令，各节点按同一截止值清理，并通过配置的最小日志 index保留距离防止时钟跃变提前破坏窗口。超出窗口后不再承诺原结果可重放，业务方不得将其当作无限期业务幂等。未提交日志可以在 Leader切换时丢弃；已经向客户端确认的提交不得因单节点故障丢失。
+
+单条 Raft命令是最小原子边界。注册实例、建立会话、递增资源版本和产生目录事件必须在同一次状态机应用中完成，不能先返回实例成功再异步补事件。首版不提供跨多个独立命令的通用事务；批量操作必须封装成一个有上限的批量命令，整体校验后一次提交，失败时不产生部分结果。
+
+`registrationId`和审计事件 ID可在状态机中由 `clusterId + logIndex + commandType + ordinal` 确定性派生。具有凭证属性的 `sessionId` 必须由 Leader使用 CSPRNG预生成并作为完整命令载荷进入 Raft，所有节点仅持久化强哈希。任何预生成 ID都必须在状态机内校验唯一性，不得由各节点在应用日志时自行生成随机值。
+
+#### 6.3.2 读取语义
+
+API显式区分两种持久读：
+
+- `consistency=LINEARIZABLE`：Leader先执行 Raft `ReadIndex` 或等价的多数派确认，等待本地 `appliedIndex` 达到该 read index后读取。管理写后的查询、鉴权、审批和路由诊断默认使用此模式。
+- `consistency=STALE`：Follower可以读取本地已应用快照，响应携带 `servedBy`、`term`、`appliedIndex` 和 `directoryRevision`。只允许用于总览、监控和可容忍旧值的列表。
+
+API不提供含义模糊的“强一致布尔开关”。如果节点不能完成 `LINEARIZABLE`读，返回 HTTP 503和 `CONSISTENCY_UNAVAILABLE`，不得静默降级为旧值。写响应返回 `minimumReadIndex`，客户端可在后续读请求中传入同名查询参数获得 read-after-write；服务端只有在 `appliedIndex >= minimumReadIndex` 时才能返回，超过请求 deadline则按一致性不可用处理。
+
+#### 6.3.3 Revision与并发写
+
+系统维护两个不同版本号：
+
+- `resourceVersion`：单个服务、实例、身份或审批资源每次修改递增，用于乐观并发控制。
+- `directoryRevision`：每个 `ServiceKey` 独立维护；影响该服务可见路由目录的已提交变更递增，用于该服务快照和事件排序。全局提交位置使用 `appliedIndex`，不用 `directoryRevision` 兼任。
+
+修改已有资源必须同时使用稳定 `commandId` 和 `resourceVersion + If-Match`。版本不匹配返回 HTTP 412和 `RESOURCE_VERSION_CONFLICT`，响应给出当前版本但不自动覆盖。删除与更新竞争时按 Raft提交顺序决定结果；后提交命令必须针对最新资源重新校验。
+
+#### 6.3.4 SDK单调目录与事件收敛
+
+每个 `ServiceSnapshot` 是某个 `ServiceKey + directoryRevision`下的不可变完整视图。SDK按 `ServiceKey` 使用 compare-and-set仅接受更大的 revision，禁止从 1024回退到 1023。SSE订阅必须限定一个 `ServiceKey`，其事件必须满足 `event.revision == localRevision + 1`：
+
+- 等于下一版本：在串行事件执行器中应用并原子发布新快照。
+- 小于等于当前版本：视为重复事件并幂等忽略。
+- 大于下一版本：视为事件缺口，暂停增量应用并重新拉取全量。
+- 全量快照小于本地 revision：拒绝替换并切换其他 Registry节点。
+
+一次 `ServiceHttpClient`调用只读取一次快照并固定其 revision；同一次调用的备用选择不会在重试中切换到另一版目录。新请求可以看到更新后的 revision。磁盘快照只保存校验通过的最后有效视图，临时文件 `fsync`后原子 rename；快照损坏、schema不兼容或 revision回退时隔离文件，不覆盖内存目录。
+
+#### 6.3.5 租约、时钟和恢复边界
+
+租约和 Client心跳是软状态，不进入每次 Raft日志，以避免高频写放大。这意味着它们不具备 `LINEARIZABLE`语义：
+
+- Leader使用单调时钟计算本任期内的超时，不把不同节点墙上时钟直接比较。
+- Leader切换后，新 Leader不能把未重建的租约立即判死；进入 `leader-grace-period`并等待 Provider携带 sessionId续约。
+- 宽限期结束仍未续约的实例，通过一个 Raft命令转为 `SUSPECT/DOWN`，该可见状态变化才递增 `directoryRevision`。
+- SDK本地隔离只影响当前进程选址，不能直接写成全局 DOWN；Registry健康状态仍以租约和主动探测为准。
+
+Raft日志和状态机快照是 Registry权威恢复来源。快照必须包含最后包含的 term/index、schemaVersion和校验和；安装快照后继续重放后续日志。备份只能在已应用 index上生成，并记录集群ID和成员信息；恢复演练必须证明 revision不回退、commandId去重窗口仍有效且旧集群不能同时对外写入。
+
+### 6.4 租约
 
 - Provider默认每 5 秒续约。
 - 约 15 秒未续约进入 `SUSPECT`。
@@ -769,7 +877,7 @@ ServiceInstance
 - Leader切换后为全部已提交临时实例提供至少一个租约周期的宽限期。
 - 旧 sessionId 不能续约新的注册会话。
 
-### 6.4 健康状态
+### 6.5 健康状态
 
 ```text
 UP → SUSPECT → DOWN → RECOVERING → UP
@@ -783,7 +891,7 @@ UP → SUSPECT → DOWN → RECOVERING → UP
 
 本地隔离不能直接覆盖全局状态。实例恢复后默认连续健康 30 秒才从 `RECOVERING` 转为 `UP`。
 
-### 6.5 REST 与 SSE
+### 6.6 REST 与 SSE
 
 主要 API：
 
@@ -794,12 +902,26 @@ UP → SUSPECT → DOWN → RECOVERING → UP
 | `PUT` | `/api/v1/registrations/{instanceId}/lease` | 续约 |
 | `DELETE` | `/api/v1/registrations/{instanceId}` | 注销 |
 | `GET` | `/api/v1/catalog/namespaces/{namespace}/groups/{group}/services/{serviceName}/snapshot` | 获取作用域内全量快照 |
-| `GET` | `/api/v1/catalog/events` | SSE目录事件 |
+| `GET` | `/api/v1/catalog/events?namespace={namespace}&group={group}&serviceName={serviceName}` | 按单个 `ServiceKey` 订阅 SSE目录事件 |
 | `PUT` | `/api/v1/clients/{clientInstanceId}/heartbeat` | 上报 SDK Client轻量状态 |
 | `POST` | `/api/v1/admin/static-instances` | 创建静态实例 |
 | `PATCH` | `/api/v1/admin/instances/{instanceId}` | 权重或上下线 |
 
 除令牌接口外，调用方必须携带 `Authorization: Bearer <access-token>` 和 `X-Request-Id`；所有写接口还必须携带稳定的 `X-Command-Id`。修改已有资源时使用 `If-Match: <resource-version>` 防止覆盖并发变更。注册请求示例：
+
+持久读接口统一接受 `consistency=LINEARIZABLE|STALE`和可选的 `minimumReadIndex=<long>`。未指定时，管理、鉴权和路由诊断使用 `LINEARIZABLE`，只读监控总览可显式使用 `STALE`。所有持久读响应均返回以下元数据，让调用方能判断数据来源和新旧：
+
+| 字段 | 含义 |
+| --- | --- |
+| `servedBy` | 实际服务节点 ID |
+| `term` | 响应时节点已知 Raft term |
+| `appliedIndex` | 已应用到本地状态机的最大日志 index |
+| `directoryRevision` | 该响应所属的可见目录版本 |
+| `consistency` | 实际执行的 `LINEARIZABLE`或 `STALE`，不允许暗中降级 |
+
+统一错误码至少包含 `CONSISTENCY_UNAVAILABLE`、`RESOURCE_VERSION_CONFLICT`、`COMMAND_ID_CONFLICT`和 `CATALOG_REVISION_GAP`。前三者分别映射 HTTP 503、HTTP 412和 HTTP 409；资源版本冲突响应必须携带当前 `resourceVersion`，但不返回可被误用为成功的更新结果。
+
+注册请求示例：
 
 ```http
 POST /api/v1/registrations HTTP/1.1
@@ -831,6 +953,8 @@ Content-Type: application/json
   "sessionId": "ses-01J3M7V4Q1VVR6A26GQBS9RHQX",
   "instanceId": "topo-node-01",
   "directoryRevision": 1024,
+  "resourceVersion": 1,
+  "minimumReadIndex": 2987,
   "leaseExpiresAt": "2026-07-24T10:30:15Z"
 }
 ```
@@ -840,12 +964,16 @@ Content-Type: application/json
 ```json
 {
   "schemaVersion": 1,
+  "consistency": "LINEARIZABLE",
+  "servedBy": "registry-1",
+  "term": 42,
+  "appliedIndex": 2987,
+  "directoryRevision": 1024,
   "service": {
     "namespace": "customer-a-prod",
     "group": "DEFAULT_GROUP",
     "serviceName": "topo-service"
   },
-  "revision": 1024,
   "generatedAt": "2026-07-24T10:30:00Z",
   "instances": [
     {
@@ -875,9 +1003,9 @@ Content-Type: application/json
 }
 ```
 
-SSE事件只包含版本化变更。Consumer携带 `Last-Event-ID` 重连；事件历史已清理或 revision不连续时，服务端返回 `CATALOG_REVISION_GAP`，SDK立即重新拉取全量快照。
+SSE事件只包含版本化变更，一条连接只订阅一个完整 `ServiceKey`。Consumer携带该 `ServiceKey` 最后应用的 `directoryRevision` 作为 `Last-Event-ID` 重连；事件历史已清理或 revision不连续时，服务端返回 `CATALOG_REVISION_GAP`，SDK立即重新拉取该服务全量快照。
 
-### 6.6 安全
+### 6.7 安全
 
 - 节点间使用 mTLS。
 - Provider、Consumer和控制台 API使用 TLS。
@@ -1281,14 +1409,20 @@ curl --cacert /etc/affinityroute/pki/ca.crt \
 - 非幂等写请求不重试。
 - SelectionLease幂等关闭。
 - 快照校验和、原子写入和损坏隔离。
-- 状态机 commandId去重和 revision单调。
+- 状态机 commandId去重返回原结果，且不重复递增 revision。
+- 相同 commandId更换请求载荷返回 HTTP 409和 `COMMAND_ID_CONFLICT`，不执行任何新变更。
+- 两个并发 `If-Match` 更新只有一个成功，另一个返回 HTTP 412和 `RESOURCE_VERSION_CONFLICT`。
+- SSE重复、缺口、乱序事件和全量快照回退均不得使 SDK revision回退。
 
 ### 10.2 组件测试
 
 - 三节点 Ratis启动、选举和快照恢复。
-- 单节点故障继续提交。
+- 已确认写入在任意单节点故障后仍可读取，剩余多数派可继续提交。
 - 失去多数派拒绝写入。
+- `LINEARIZABLE`读不返回已确认写入之前的旧值，无法确认多数派时返回 `CONSISTENCY_UNAVAILABLE`。
+- `STALE`读允许返回旧值，但必须暴露 `servedBy`、`term`、`appliedIndex`和 `directoryRevision`。
 - Leader切换租约宽限期。
+- Leader租约重建和快照恢复后 `directoryRevision`不回退。
 - REST/SSE鉴权、重连和事件缺口回退。
 - ClientScope禁止跨 namespace。
 - Spring Starter Bean覆盖和关闭顺序。
@@ -1363,6 +1497,10 @@ mvn -pl performance-tests verify -Ptarget-scale
 | affinity ID泄露 | 只在内存计算，日志和响应仅保存不可逆哈希 |
 | Prometheus不可用 | 管理功能保持可用，历史图表明确降级 |
 | Ratis升级影响业务 | `ConsensusStore` 隔离依赖并锁定验证版本 |
+| 线性读增加延迟，且失去多数派时不可用 | 仅在需要的路径默认线性读，监控总览显式使用带元数据的 `STALE`读，分别监控延迟和拒绝率 |
+| commandId去重窗口过期后重试可能重复执行 | 公开去重保留时长和容量，SDK在窗口内完成重试，核心业务另设长期业务幂等键 |
+| 备份恢复后旧集群与新集群同时写入造成分裂 | 恢复前隔离旧集群、校验 clusterId、换发访问入口和凭证，以单一写入集群为验收门禁 |
+| 原生 Registry的共识、安全与升级维护超出团队能力 | 设置可量化退出条件，保留 Registry transport适配边界，门禁失败时切换成熟目录后端 |
 
 ## 12. 排障方式
 
@@ -1408,16 +1546,16 @@ affinityroute_lb_no_available_instance_total
 | --- | --- | --- | --- |
 | T01 工程与契约 | `pom.xml`、`sdk-api/src/main/java/cc/lvdaxianerplus/affinityroute/api/**`、`registry-protocol/src/main/java/cc/lvdaxianerplus/affinityroute/protocol/**` | `architecture-tests/src/test/java/cc/lvdaxianerplus/affinityroute/architecture/ModuleDependencyTest.java` | `mvn -pl architecture-tests -am test` |
 | T02 负载算法 | `lb-core/src/main/java/cc/lvdaxianerplus/affinityroute/loadbalancer/**` | `lb-core/src/test/java/cc/lvdaxianerplus/affinityroute/loadbalancer/WeightedRendezvousHashTest.java`、`WeightedLeastConcurrencyTest.java` | `mvn -pl lb-core -am test` |
-| T03 目录状态机 | `registry-ratis/src/main/java/cc/lvdaxianerplus/affinityroute/registry/ratis/catalog/**` | `registry-ratis/src/test/java/cc/lvdaxianerplus/affinityroute/registry/ratis/catalog/CatalogStateMachineTest.java` | `mvn -pl registry-ratis -am test` |
-| T04 Ratis适配 | `registry-ratis/src/main/java/cc/lvdaxianerplus/affinityroute/registry/ratis/consensus/**` | `registry-ratis/src/test/java/cc/lvdaxianerplus/affinityroute/registry/ratis/consensus/ThreeNodeConsensusTest.java` | `mvn -pl registry-ratis -am verify` |
-| T05 注册与健康 | `registry-server/src/main/java/cc/lvdaxianerplus/affinityroute/registry/server/registration/**`、`health/**` | `registry-server/src/test/java/cc/lvdaxianerplus/affinityroute/registry/server/registration/LeaseLifecycleTest.java` | `mvn -pl registry-server -am test` |
-| T06 REST/SSE与安全 | `registry-server/src/main/java/cc/lvdaxianerplus/affinityroute/registry/server/api/**`、`security/**`、`events/**` | `registry-server/src/test/java/cc/lvdaxianerplus/affinityroute/registry/server/api/RegistryContractTest.java` | `mvn -pl registry-server -am verify` |
-| T07 Provider与Discovery | `registry-client/src/main/java/cc/lvdaxianerplus/affinityroute/client/**` | `registry-client/src/test/java/cc/lvdaxianerplus/affinityroute/client/DiscoveryRecoveryTest.java` | `mvn -pl registry-client -am verify` |
+| T03 目录状态机 | `registry-ratis/src/main/java/cc/lvdaxianerplus/affinityroute/registry/ratis/catalog/**` | `CatalogStateMachineTest`先覆盖 commandId原结果、If-Match竞争和revision确定性 | `mvn -pl registry-ratis -am test` |
+| T04 Ratis适配 | `registry-ratis/src/main/java/cc/lvdaxianerplus/affinityroute/registry/ratis/consensus/**` | `ThreeNodeConsensusTest`先覆盖已确认写不丢失、ReadIndex线性读和快照恢复 | `mvn -pl registry-ratis -am verify` |
+| T05 注册与健康 | `registry-server/src/main/java/cc/lvdaxianerplus/affinityroute/registry/server/registration/**`、`health/**` | `LeaseLifecycleTest`先覆盖 Leader切换宽限期、会话重建和可见健康版本 | `mvn -pl registry-server -am test` |
+| T06 REST/SSE与安全 | `registry-server/src/main/java/cc/lvdaxianerplus/affinityroute/registry/server/api/**`、`security/**`、`events/**` | `RegistryContractTest`先覆盖读一致性参数、响应元数据、412/503错误和SSE缺口 | `mvn -pl registry-server -am verify` |
+| T07 Provider与Discovery | `registry-client/src/main/java/cc/lvdaxianerplus/affinityroute/client/**` | `DiscoveryRecoveryTest`先覆盖重复/乱序/缺口事件、快照回退拒绝和磁盘恢复 | `mvn -pl registry-client -am verify` |
 | T08 HTTP治理 | `lb-http-client/src/main/java/cc/lvdaxianerplus/affinityroute/http/**` | `lb-http-client/src/test/java/cc/lvdaxianerplus/affinityroute/http/RetryDeadlineTest.java`、`LocalEjectionTest.java` | `mvn -pl lb-http-client -am verify` |
 | T09 Starter与迁移 | `lb-spring-boot-starter/src/**`、`registry-static/src/**`、`examples/**` | `lb-spring-boot-starter/src/test/java/cc/lvdaxianerplus/affinityroute/starter/AffinityRouteAutoConfigurationTest.java` | `mvn -pl lb-spring-boot-starter,examples -am verify` |
 | T10 控制台后端 | `console-api/src/**`、`observability-prometheus/src/**` | `console-api/src/test/java/cc/lvdaxianerplus/affinityroute/console/ApprovalWorkflowTest.java` | `mvn -pl console-api,observability-prometheus -am verify` |
 | T11 控制台前端 | `console-web/src/**`、`console-web/tests/**` | `console-web/src/features/service-catalog/ServicesTable.spec.ts`、`console-web/tests/critical-flow.spec.ts` | `npm --prefix console-web run typecheck && npm --prefix console-web run test && npm --prefix console-web run test:e2e` |
-| T12 发行与验收 | `distribution/**`、`system-tests/**`、`performance-tests/**` | `system-tests/src/test/java/cc/lvdaxianerplus/affinityroute/system/RegistryFailoverTest.java` | `mvn -pl system-tests,performance-tests,distribution -am verify -Ptarget-scale,offline` |
+| T12 发行与验收 | `distribution/**`、`system-tests/**`、`performance-tests/**` | `RegistryFailoverTest`先覆盖单节点故障后确认写可读、线性读不倒退和备份恢复防分裂 | `mvn -pl system-tests,performance-tests,distribution -am verify -Ptarget-scale,offline` |
 
 每个任务的固定执行顺序为：新增单一行为测试并确认按预期失败，完成最小实现，运行聚焦命令，再运行 `mvn -T1C verify`；涉及前端时追加 typecheck、Vitest、构建和 Playwright。随后核对本节交付标准、执行完整 diff审查并提交。任何公共 API、wire schema、配置键或指标名变更都必须同步兼容性测试和示例配置。
 
@@ -1440,10 +1578,10 @@ affinityroute_lb_no_available_instance_total
 
 ### 13.3 目录状态机与 Raft
 
-1. 实现确定性目录状态机、commandId去重和revision。
+1. 实现确定性目录状态机、commandId去重、If-Match并发控制和原子revision。
 2. 实现状态机快照和恢复。
-3. 通过 `ConsensusStore` 接入三节点 Ratis。
-4. 验证 Follower写引导、单节点故障、少数派拒写和节点追平。
+3. 通过 `ConsensusStore` 接入三节点 Ratis并实现 `ReadIndex`线性读。
+4. 验证 Follower写引导、确认写故障后不丢失、少数派拒写、线性读和节点追平。
 
 交付标准：三节点故障集成测试通过，无外部数据库。
 
@@ -1460,8 +1598,9 @@ affinityroute_lb_no_available_instance_total
 
 1. 实现应用身份、令牌、权限和密钥轮换。
 2. 实现注册、续约、注销和快照 REST API。
-3. 实现有界 SSE事件窗口和版本缺口处理。
-4. 实现审计和 Micrometer指标。
+3. 实现 `LINEARIZABLE|STALE`读参数、minimumReadIndex、元数据和统一一致性错误。
+4. 实现有界 SSE事件窗口和版本缺口处理。
+5. 实现审计和 Micrometer指标。
 
 交付标准：契约、鉴权、慢 Consumer和断线恢复集成测试通过。
 
@@ -1469,7 +1608,7 @@ affinityroute_lb_no_available_instance_total
 
 1. 实现 `DefaultProviderClient` 和 `RegistrationHandle`。
 2. 实现 `DefaultDiscoveryClient`、全量拉取和 SSE订阅。
-3. 实现不可变内存目录、磁盘快照和合并写入。
+3. 实现不可变内存目录、单调revision、事件缺口回退和原子磁盘快照。
 4. 实现端点切换、退避、抖动和关闭语义。
 
 交付标准：WireMock集成测试覆盖 Leader切换、失联和快照恢复。
@@ -1512,8 +1651,9 @@ affinityroute_lb_no_available_instance_total
 1. 制作三节点离线包、systemd、证书和预检脚本。
 2. 提供可选 Prometheus离线部署。
 3. 执行三节点故障、实例故障和快照损坏测试。
-4. 执行 200 服务/2,000 实例容量测试。
-5. 完成备份恢复、升级回滚和云瞰影子迁移演练。
+4. 执行已确认写不丢失、线性读不倒退、幂等重试和SSE收敛系统测试。
+5. 执行 200 服务/2,000 实例容量测试。
+6. 完成备份恢复、防分裂、升级回滚和云瞰影子迁移演练。
 
 交付标准：同一发布候选通过全量构建、故障、容量、离线安装和回滚门禁。
 
@@ -1531,6 +1671,8 @@ affinityroute_lb_no_available_instance_total
 
 ## 15. 参考资料
 
+- [Nacos官方介绍](https://nacos.io/docs/latest/what-is-nacos/)
+- [Nacos GitHub仓库](https://github.com/alibaba/nacos)
 - [Registry Server 配置示例](./references/registry-server.example.yaml)
 - [SDK Client 配置示例](./references/sdk-client.example.yaml)
 - [Prometheus 告警规则示例](./references/prometheus-alerts.example.yaml)
