@@ -1,0 +1,92 @@
+server:
+  port: 9443
+  ssl:
+    enabled: true
+    certificate: /etc/uino-discovery/pki/server.crt
+    certificate-private-key: /etc/uino-discovery/pki/server.key
+    trust-certificate: /etc/uino-discovery/pki/ca.crt
+
+spring:
+  application:
+    name: uino-discovery-registry
+
+uino:
+  discovery:
+    registry:
+      node-id: registry-01
+      advertised-address: registry-01.example.internal
+      data-directory: /var/lib/uino-discovery/registry-01
+      peers:
+        - node-id: registry-01
+          address: registry-01.example.internal:9858
+        - node-id: registry-02
+          address: registry-02.example.internal:9858
+        - node-id: registry-03
+          address: registry-03.example.internal:9858
+      ratis:
+        port: 9858
+        election-timeout-min: 3s
+        election-timeout-max: 6s
+        snapshot-threshold-entries: 10000
+      lease:
+        heartbeat-interval: 5s
+        suspect-after: 15s
+        leader-grace-period: 20s
+      health:
+        probe-interval: 10s
+        connect-timeout: 1s
+        response-timeout: 2s
+        recovery-window: 30s
+        max-concurrency: 64
+      events:
+        retention-count: 10000
+        subscriber-buffer-size: 256
+      client-telemetry:
+        heartbeat-interval: 15s
+        offline-after: 45s
+        leader-grace-period: 60s
+      runtime:
+        executors:
+          sse-delivery:
+            threads: 4
+            queue-capacity: 1024
+            rejection-policy: DISCONNECT_SLOW_SUBSCRIBER
+            thread-name-prefix: registry-sse-delivery-
+          health-probe:
+            threads: 8
+            queue-capacity: 256
+            rejection-policy: SKIP_AND_ALERT
+            thread-name-prefix: registry-health-probe-
+      security:
+        node-mtls-enabled: true
+        client-ca: /etc/uino-discovery/pki/ca.crt
+        token-ttl: 15m
+        token-signing-private-key: /etc/uino-discovery/secrets/token-signing.key
+        token-verification-certificate: /etc/uino-discovery/pki/token-signing.crt
+        session-signing-key-file: /etc/uino-discovery/secrets/session-signing.key
+        bootstrap-admin-password-file: /etc/uino-discovery/secrets/admin-initial-password
+        login-rate-limit:
+          max-failures: 5
+          lock-duration: 15m
+      console:
+        enabled: true
+        session-timeout: 30m
+        approval-expiration: 24h
+        session-cookie:
+          secure: true
+          http-only: true
+          same-site: LAX
+      prometheus:
+        enabled: true
+        base-url: http://prometheus.example.internal:9090
+        query-timeout: 3s
+        cache-ttl: 15s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized

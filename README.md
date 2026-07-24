@@ -10,6 +10,7 @@ Axiom 是一个通用问题解决方案库，用于沉淀可复用的技术方�
 | [OCR语义聚类Markdown生成](./OCR语义聚类Markdown生成/README.md) | 通过清洗、切块、embedding 聚类和 LLM 归纳，将大体量 OCR 文本整理为可复核的语义化 Markdown。 | 方案设计 |
 | [Nginx日志触发拓扑图资源同步](./Nginx日志触发拓扑图资源同步/README.md) | 在 B 系统不改造的前提下，通过 Nginx access log + Vector 监听保存请求，并触发 A 系统同步拓扑资源。 | 已验证 |
 | [ClaudeCode云端服务化](./ClaudeCode云端服务化/README.md) | 将 Claude Code 封装为云端 HTTP/SSE 服务，并设计 workspace、沙箱和快照恢复能力。 | 方案设计 |
+| [Java服务发现与客户端负载均衡](./Java服务发现与客户端负载均衡/README.md) | 通过三节点服务目录、Java SDK、ID 亲和负载均衡和统一控制台，替代产品间固定 IP 直连。 | 方案设计 |
 
 ## 方案库规范
 

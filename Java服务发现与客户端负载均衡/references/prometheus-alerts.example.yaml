@@ -1,0 +1,66 @@
+groups:
+  - name: uino-discovery-registry
+    rules:
+      - alert: UinoDiscoveryRegistryNoMajority
+        expr: max(registry_raft_writable) == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: Registry 集群失去可写多数派
+          description: 所有 Registry 节点均报告不可写，目录变更已停止。
+
+      - alert: UinoDiscoveryFollowerLagging
+        expr: registry_raft_log_lag_entries > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Registry Follower 日志明显落后
+          description: 节点 {{ $labels.node_id }} 的 Raft 日志落后超过 1000 条。
+
+      - alert: UinoDiscoverySseDeliverySlow
+        expr: histogram_quantile(0.99, sum by (le) (rate(registry_sse_delivery_latency_seconds_bucket[5m]))) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 服务目录 SSE 推送延迟过高
+          description: 最近五分钟 SSE 推送 P99 超过三秒。
+
+  - name: uino-discovery-client
+    rules:
+      - alert: UinoDiscoveryClientDisconnected
+        expr: discovery_client_connected == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: SDK Client 与 Registry 失联
+          description: Client {{ $labels.client_instance_id }} 已连续两分钟无法连接 Registry。
+
+      - alert: UinoDiscoverySnapshotTooOld
+        expr: discovery_snapshot_age_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: SDK 服务目录快照过旧
+          description: Client {{ $labels.client_instance_id }} 的快照年龄超过五分钟。
+
+      - alert: UinoDiscoveryNoAvailableInstance
+        expr: increase(lb_no_available_instance_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: 逻辑服务没有可用实例
+          description: 服务 {{ $labels.service_name }} 在最近五分钟出现无可用实例错误。
+
+      - alert: UinoDiscoveryRetryRateHigh
+        expr: sum by (service_name) (rate(lb_retries_total[5m])) / clamp_min(sum by (service_name) (rate(lb_requests_total[5m])), 1) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: SDK 请求重试率过高
+          description: 服务 {{ $labels.service_name }} 的重试率连续十分钟超过 10%。

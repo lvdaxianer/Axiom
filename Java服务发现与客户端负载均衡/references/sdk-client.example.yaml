@@ -1,0 +1,87 @@
+spring:
+  application:
+    name: yunkan
+
+uino:
+  discovery:
+    enabled: true
+    scope:
+      namespace: customer-a-prod
+      group: UINO_THING
+    registry:
+      endpoints:
+        - https://registry-01.example.internal:9443
+        - https://registry-02.example.internal:9443
+        - https://registry-03.example.internal:9443
+      client-id: yunkan
+      secret-file: /etc/uino-discovery/secrets/client-secret
+      ca-certificate: /etc/uino-discovery/pki/ca.crt
+      connect-timeout: 2s
+      request-timeout: 5s
+    snapshot:
+      path: /var/lib/yunkan/discovery/catalog.snapshot
+      reconciliation-interval: 60s
+    provider:
+      enabled: false
+      service-name: yunkan-service
+      instance-id: ${HOSTNAME}
+      advertised-host: ${DISCOVERY_ADVERTISED_HOST}
+      scheme: https
+      weight: 100
+      cluster: default
+      health-path: /actuator/health/readiness
+    load-balancer:
+      recovery-window: 30s
+      local-ejection:
+        consecutive-failures: 3
+        cooldown: 20s
+        half-open-max-concurrency: 1
+    http:
+      total-timeout: 5s
+      max-attempts: 2
+      max-concurrency-per-instance: 100
+      acquire-timeout: 100ms
+      max-response-bytes: 10485760
+      connection-pool:
+        max-total: 400
+        max-per-route: 100
+    telemetry:
+      enabled: true
+      heartbeat-interval: 15s
+      include-local-ejection-details: true
+    runtime:
+      executors:
+        directory-events:
+          threads: 1
+          queue-capacity: 256
+          rejection-policy: RESYNC
+          thread-name-prefix: discovery-sse-event-
+        provider-renewal:
+          threads: 2
+          queue-capacity: 128
+          rejection-policy: ABORT
+          thread-name-prefix: discovery-provider-renewal-
+        revision-reconciliation:
+          threads: 1
+          queue-capacity: 16
+          rejection-policy: SKIP_AND_ALERT
+          thread-name-prefix: discovery-reconcile-
+        snapshot-writer:
+          threads: 1
+          queue-capacity: 1
+          rejection-policy: COALESCE_LATEST
+          thread-name-prefix: discovery-snapshot-writer-
+    routes:
+      topo-sync:
+        service-name: topo-service
+        path: /projectScene/offlineTopo/sync
+        affinity:
+          source: JSON_BODY
+          expression: /topoId
+        idempotent: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
