@@ -12,6 +12,8 @@ spring:
 
 affinityroute:
     registry:
+      cluster-id: affinityroute-prod-a
+      raft-group-id: 6f9169b0-98c6-4f6e-a326-4741bcec7f18
       node-id: registry-01
       advertised-address: registry-01.example.internal
       data-directory: /var/lib/affinityroute/registry-01
@@ -27,6 +29,11 @@ affinityroute:
         election-timeout-min: 3s
         election-timeout-max: 6s
         snapshot-threshold-entries: 10000
+        command-max-bytes: 1048576
+      command-deduplication:
+        minimum-window: 24h
+        minimum-retained-index-distance: 100000
+        expiration-command-interval: 60s
       lease:
         heartbeat-interval: 5s
         suspect-after: 15s
@@ -40,6 +47,7 @@ affinityroute:
       events:
         retention-count: 10000
         subscriber-buffer-size: 256
+        heartbeat-interval: 15s
       client-telemetry:
         heartbeat-interval: 15s
         offline-after: 45s
@@ -60,10 +68,21 @@ affinityroute:
         node-mtls-enabled: true
         client-ca: /etc/affinityroute/pki/ca.crt
         token-ttl: 15m
+        token-algorithm: ES256
         token-signing-private-key: /etc/affinityroute/secrets/token-signing.key
         token-verification-certificate: /etc/affinityroute/pki/token-signing.crt
-        session-signing-key-file: /etc/affinityroute/secrets/session-signing.key
+        session-hmac:
+          algorithm: HMAC-SHA-256
+          current-key-id: session-2026-07
+          current-key-file: /etc/affinityroute/secrets/session-hmac-current.key
+          previous-key-id: ""
+          previous-key-file: ""
         bootstrap-admin-password-file: /etc/affinityroute/secrets/admin-initial-password
+        credential-hashing:
+          algorithm: ARGON2ID
+          memory-kib: 65536
+          iterations: 3
+          parallelism: 1
         login-rate-limit:
           max-failures: 5
           lock-duration: 15m

@@ -1,0 +1,979 @@
+openapi: 3.1.0
+info:
+  title: AffinityRoute Registry API
+  version: 1.0.0
+  license:
+    name: Apache License 2.0
+    identifier: Apache-2.0
+  description: >-
+    Registry Server 与 Provider/Consumer SDK 之间的编码级契约。
+    幂等、一致性和 SSE 时序见 REST与SSE协议契约.md。
+servers:
+  - url: https://registry.example.internal:9443
+    description: 生产 Registry 统一入口
+tags:
+  - name: Authentication
+    description: Client 凭证与短期访问令牌。
+  - name: Registration
+    description: Provider 实例注册、租约续期与注销。
+  - name: Catalog
+    description: Consumer 服务目录快照与增量事件。
+  - name: ClientTelemetry
+    description: SDK Client 在线软状态上报。
+  - name: Administration
+    description: 需权限校验的持久管理变更。
+paths:
+  /api/v1/auth/tokens:
+    post:
+      tags: [Authentication]
+      operationId: createAccessToken
+      summary: 使用 Client 凭证换取短期访问令牌
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: 令牌创建成功
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-AffinityRoute-Node-Id:
+              $ref: '#/components/headers/NodeId'
+            X-AffinityRoute-Schema-Version:
+              $ref: '#/components/headers/SchemaVersion'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/registrations:
+    post:
+      tags: [Registration]
+      operationId: registerInstance
+      summary: 注册临时实例
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/RegistrationSession'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrationRequest'
+      responses:
+        '201':
+          description: 实例已经 Raft 提交
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-AffinityRoute-Node-Id:
+              $ref: '#/components/headers/NodeId'
+            X-AffinityRoute-Schema-Version:
+              $ref: '#/components/headers/SchemaVersion'
+            X-AffinityRoute-Deduplication-Window-Seconds:
+              $ref: '#/components/headers/DeduplicationWindowSeconds'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/registrations/{instanceId}/lease:
+    put:
+      tags: [Registration]
+      operationId: renewLease
+      summary: 续约 Leader 内存租约
+      parameters:
+        - $ref: '#/components/parameters/InstanceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/RegistrationSession'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaseRenewalRequest'
+      responses:
+        '200':
+          description: 续约已接受
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-AffinityRoute-Node-Id:
+              $ref: '#/components/headers/NodeId'
+            X-AffinityRoute-Schema-Version:
+              $ref: '#/components/headers/SchemaVersion'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseRenewalResponse'
+        '307':
+          description: 需要向受信任 Leader 端点重试
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-AffinityRoute-Node-Id:
+              $ref: '#/components/headers/NodeId'
+            X-AffinityRoute-Schema-Version:
+              $ref: '#/components/headers/SchemaVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/registrations/{instanceId}:
+    delete:
+      tags: [Registration]
+      operationId: deregisterInstance
+      summary: 注销临时实例
+      parameters:
+        - $ref: '#/components/parameters/InstanceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/RegistrationSession'
+      responses:
+        '200':
+          description: 注销已经 Raft 提交
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-AffinityRoute-Node-Id:
+              $ref: '#/components/headers/NodeId'
+            X-AffinityRoute-Schema-Version:
+              $ref: '#/components/headers/SchemaVersion'
+            X-AffinityRoute-Deduplication-Window-Seconds:
+              $ref: '#/components/headers/DeduplicationWindowSeconds'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/catalog/namespaces/{namespace}/groups/{group}/services/{serviceName}/snapshot:
+    get:
+      tags: [Catalog]
+      operationId: getServiceSnapshot
+      summary: 读取服务全量快照
+      parameters:
+        - $ref: '#/components/parameters/Namespace'
+        - $ref: '#/components/parameters/Group'
+        - $ref: '#/components/parameters/ServiceName'
+        - $ref: '#/components/parameters/RequestId'
+        - name: consistency
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ReadConsistency'
+        - name: minimumReadIndex
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/NonNegativeVersion'
+      responses:
+        '200':
+          description: 完整不可变服务快照
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-AffinityRoute-Node-Id:
+              $ref: '#/components/headers/NodeId'
+            X-AffinityRoute-Schema-Version:
+              $ref: '#/components/headers/SchemaVersion'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceSnapshotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/catalog/events:
+    get:
+      tags: [Catalog]
+      operationId: subscribeCatalogEvents
+      summary: 订阅单个 ServiceKey 的目录事件
+      parameters:
+        - $ref: '#/components/parameters/NamespaceQuery'
+        - $ref: '#/components/parameters/GroupQuery'
+        - $ref: '#/components/parameters/ServiceNameQuery'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/LastEventId'
+      responses:
+        '200':
+          description: >-
+            SSE 流。event 为 catalog-change 或 catalog-control，id 为
+            ServiceKey 局部 directoryRevision。
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-cache
+            X-Accel-Buffering:
+              schema:
+                type: string
+                const: 'no'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-AffinityRoute-Node-Id:
+              $ref: '#/components/headers/NodeId'
+            X-AffinityRoute-Schema-Version:
+              $ref: '#/components/headers/SchemaVersion'
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/clients/{clientInstanceId}/heartbeat:
+    put:
+      tags: [ClientTelemetry]
+      operationId: heartbeatClient
+      summary: 上报 SDK Client 软状态
+      parameters:
+        - name: clientInstanceId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientHeartbeatRequest'
+      responses:
+        '202':
+          description: 心跳已接受
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-AffinityRoute-Node-Id:
+              $ref: '#/components/headers/NodeId'
+            X-AffinityRoute-Schema-Version:
+              $ref: '#/components/headers/SchemaVersion'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientHeartbeatResponse'
+        '307':
+          description: 需要向受信任 Leader 端点重试
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-AffinityRoute-Node-Id:
+              $ref: '#/components/headers/NodeId'
+            X-AffinityRoute-Schema-Version:
+              $ref: '#/components/headers/SchemaVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/admin/static-instances:
+    post:
+      tags: [Administration]
+      operationId: createStaticInstance
+      summary: 创建静态实例
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CommandId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaticInstanceRequest'
+      responses:
+        '201':
+          description: 静态实例已创建
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-AffinityRoute-Node-Id:
+              $ref: '#/components/headers/NodeId'
+            X-AffinityRoute-Schema-Version:
+              $ref: '#/components/headers/SchemaVersion'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstanceMutationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/admin/instances/{instanceId}:
+    patch:
+      tags: [Administration]
+      operationId: patchInstance
+      summary: 修改权重、启用状态或 metadata
+      parameters:
+        - $ref: '#/components/parameters/InstanceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/InstancePatchRequest'
+      responses:
+        '200':
+          description: 实例已更新
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-AffinityRoute-Node-Id:
+              $ref: '#/components/headers/NodeId'
+            X-AffinityRoute-Schema-Version:
+              $ref: '#/components/headers/SchemaVersion'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstanceMutationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      schema:
+        $ref: '#/components/schemas/Ulid'
+    CommandId:
+      name: X-Command-Id
+      in: header
+      required: true
+      schema:
+        $ref: '#/components/schemas/Ulid'
+    RegistrationSession:
+      name: X-Registration-Session
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_-]{43}$'
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: '^"[1-9][0-9]*"$'
+    LastEventId:
+      name: Last-Event-ID
+      in: header
+      required: false
+      schema:
+        $ref: '#/components/schemas/NonNegativeVersion'
+    Namespace:
+      name: namespace
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Namespace'
+    Group:
+      name: group
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Group'
+    ServiceName:
+      name: serviceName
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ServiceName'
+    NamespaceQuery:
+      name: namespace
+      in: query
+      required: true
+      schema:
+        $ref: '#/components/schemas/Namespace'
+    GroupQuery:
+      name: group
+      in: query
+      required: true
+      schema:
+        $ref: '#/components/schemas/Group'
+    ServiceNameQuery:
+      name: serviceName
+      in: query
+      required: true
+      schema:
+        $ref: '#/components/schemas/ServiceName'
+    InstanceId:
+      name: instanceId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ResourceId'
+  headers:
+    RequestId:
+      required: true
+      schema:
+        $ref: '#/components/schemas/Ulid'
+    NodeId:
+      required: true
+      schema:
+        $ref: '#/components/schemas/ResourceId'
+    SchemaVersion:
+      required: true
+      schema:
+        type: integer
+        const: 1
+    DeduplicationWindowSeconds:
+      required: true
+      schema:
+        type: integer
+        minimum: 60
+  responses:
+    BadRequest:
+      description: 请求校验失败
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        X-AffinityRoute-Node-Id:
+          $ref: '#/components/headers/NodeId'
+        X-AffinityRoute-Schema-Version:
+          $ref: '#/components/headers/SchemaVersion'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Unauthorized:
+      description: 认证凭证无效
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        X-AffinityRoute-Node-Id:
+          $ref: '#/components/headers/NodeId'
+        X-AffinityRoute-Schema-Version:
+          $ref: '#/components/headers/SchemaVersion'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: 权限不足
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        X-AffinityRoute-Node-Id:
+          $ref: '#/components/headers/NodeId'
+        X-AffinityRoute-Schema-Version:
+          $ref: '#/components/headers/SchemaVersion'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: 资源不存在
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        X-AffinityRoute-Node-Id:
+          $ref: '#/components/headers/NodeId'
+        X-AffinityRoute-Schema-Version:
+          $ref: '#/components/headers/SchemaVersion'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: 命令、session 或 revision 冲突
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        X-AffinityRoute-Node-Id:
+          $ref: '#/components/headers/NodeId'
+        X-AffinityRoute-Schema-Version:
+          $ref: '#/components/headers/SchemaVersion'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    PreconditionFailed:
+      description: resourceVersion 不匹配
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        X-AffinityRoute-Node-Id:
+          $ref: '#/components/headers/NodeId'
+        X-AffinityRoute-Schema-Version:
+          $ref: '#/components/headers/SchemaVersion'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    PreconditionRequired:
+      description: 缺少 If-Match
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        X-AffinityRoute-Node-Id:
+          $ref: '#/components/headers/NodeId'
+        X-AffinityRoute-Schema-Version:
+          $ref: '#/components/headers/SchemaVersion'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    RateLimited:
+      description: 请求被限流
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        X-AffinityRoute-Node-Id:
+          $ref: '#/components/headers/NodeId'
+        X-AffinityRoute-Schema-Version:
+          $ref: '#/components/headers/SchemaVersion'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Unavailable:
+      description: Leader、多数派或线性读不可用
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        X-AffinityRoute-Node-Id:
+          $ref: '#/components/headers/NodeId'
+        X-AffinityRoute-Schema-Version:
+          $ref: '#/components/headers/SchemaVersion'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+  schemas:
+    Ulid:
+      type: string
+      pattern: '^[0-9A-HJKMNP-TV-Z]{26}$'
+    ResourceId:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+    Namespace:
+      type: string
+      minLength: 1
+      maxLength: 63
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+    Group:
+      type: string
+      minLength: 1
+      maxLength: 63
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+    ServiceName:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+    PositiveVersion:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+    NonNegativeVersion:
+      type: integer
+      minimum: 0
+      maximum: 9007199254740991
+    ServiceKey:
+      type: object
+      additionalProperties: false
+      required: [namespace, group, serviceName]
+      properties:
+        namespace:
+          $ref: '#/components/schemas/Namespace'
+        group:
+          $ref: '#/components/schemas/Group'
+        serviceName:
+          $ref: '#/components/schemas/ServiceName'
+    Metadata:
+      type: object
+      maxProperties: 32
+      propertyNames:
+        minLength: 1
+        maxLength: 64
+        pattern: '^(?!affinityroute\.).+$'
+      additionalProperties:
+        type: string
+        maxLength: 256
+    HealthStatus:
+      type: string
+      enum: [UP, SUSPECT, DOWN, RECOVERING]
+    InstanceLifecycle:
+      type: string
+      enum: [EPHEMERAL, STATIC]
+    Instance:
+      type: object
+      additionalProperties: false
+      required:
+        - instanceId
+        - baseUri
+        - weight
+        - cluster
+        - metadata
+        - healthStatus
+        - lifecycle
+        - resourceVersion
+      properties:
+        instanceId:
+          $ref: '#/components/schemas/ResourceId'
+        baseUri:
+          type: string
+          format: uri
+          maxLength: 2048
+          pattern: '^https?://(?:\[[0-9A-Fa-f:]+\]|[^/?#:]+):[0-9]+/?$'
+        weight:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        cluster:
+          $ref: '#/components/schemas/Group'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        healthStatus:
+          $ref: '#/components/schemas/HealthStatus'
+        lifecycle:
+          $ref: '#/components/schemas/InstanceLifecycle'
+        resourceVersion:
+          $ref: '#/components/schemas/PositiveVersion'
+    TokenRequest:
+      type: object
+      additionalProperties: false
+      required: [clientId, clientSecret]
+      properties:
+        clientId:
+          $ref: '#/components/schemas/ResourceId'
+        clientSecret:
+          type: string
+          minLength: 32
+          maxLength: 512
+          writeOnly: true
+    TokenResponse:
+      type: object
+      additionalProperties: false
+      required: [tokenType, accessToken, expiresInSeconds]
+      properties:
+        tokenType:
+          type: string
+          const: Bearer
+        accessToken:
+          type: string
+          minLength: 1
+        expiresInSeconds:
+          type: integer
+          minimum: 60
+          maximum: 3600
+    RegistrationRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - service
+        - instanceId
+        - baseUri
+        - weight
+        - cluster
+        - metadata
+        - healthPath
+      properties:
+        service:
+          $ref: '#/components/schemas/ServiceKey'
+        instanceId:
+          $ref: '#/components/schemas/ResourceId'
+        baseUri:
+          type: string
+          format: uri
+          maxLength: 2048
+          pattern: '^https?://(?:\[[0-9A-Fa-f:]+\]|[^/?#:]+):[0-9]+/?$'
+        weight:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        cluster:
+          $ref: '#/components/schemas/Group'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        healthPath:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: '^/(?!.*(?:^|/)\.\.(?:/|$))[^?#]*$'
+    RegistrationResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - registrationId
+        - instance
+        - directoryRevision
+        - minimumReadIndex
+        - leaseExpiresAt
+      properties:
+        registrationId:
+          type: string
+          pattern: '^reg-[0-9A-HJKMNP-TV-Z]{26}$'
+        instance:
+          $ref: '#/components/schemas/Instance'
+        directoryRevision:
+          $ref: '#/components/schemas/PositiveVersion'
+        minimumReadIndex:
+          $ref: '#/components/schemas/PositiveVersion'
+        leaseExpiresAt:
+          type: string
+          format: date-time
+    LeaseRenewalRequest:
+      type: object
+      additionalProperties: false
+      required: [sequence]
+      properties:
+        sequence:
+          $ref: '#/components/schemas/PositiveVersion'
+    LeaseRenewalResponse:
+      type: object
+      additionalProperties: false
+      required: [sequence, leaseExpiresAt, leaderEpoch]
+      properties:
+        sequence:
+          $ref: '#/components/schemas/PositiveVersion'
+        leaseExpiresAt:
+          type: string
+          format: date-time
+        leaderEpoch:
+          $ref: '#/components/schemas/PositiveVersion'
+    CommandResponse:
+      type: object
+      additionalProperties: false
+      required: [resourceId, directoryRevision, minimumReadIndex]
+      properties:
+        resourceId:
+          $ref: '#/components/schemas/ResourceId'
+        directoryRevision:
+          $ref: '#/components/schemas/PositiveVersion'
+        minimumReadIndex:
+          $ref: '#/components/schemas/PositiveVersion'
+    ReadConsistency:
+      type: string
+      enum: [LINEARIZABLE, STALE]
+      default: LINEARIZABLE
+    ServiceSnapshotResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - consistency
+        - servedBy
+        - term
+        - appliedIndex
+        - directoryRevision
+        - service
+        - generatedAt
+        - checksum
+        - instances
+      properties:
+        schemaVersion:
+          type: integer
+          const: 1
+        consistency:
+          $ref: '#/components/schemas/ReadConsistency'
+        servedBy:
+          $ref: '#/components/schemas/ResourceId'
+        term:
+          $ref: '#/components/schemas/NonNegativeVersion'
+        appliedIndex:
+          $ref: '#/components/schemas/NonNegativeVersion'
+        directoryRevision:
+          $ref: '#/components/schemas/NonNegativeVersion'
+        service:
+          $ref: '#/components/schemas/ServiceKey'
+        generatedAt:
+          type: string
+          format: date-time
+        checksum:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+        instances:
+          type: array
+          items:
+            $ref: '#/components/schemas/Instance'
+    ServiceRevision:
+      type: object
+      additionalProperties: false
+      required: [service, revision]
+      properties:
+        service:
+          $ref: '#/components/schemas/ServiceKey'
+        revision:
+          $ref: '#/components/schemas/NonNegativeVersion'
+    ClientHeartbeatRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - sequence
+        - sdkVersion
+        - applicationName
+        - revisions
+        - localEjectionCount
+      properties:
+        sequence:
+          $ref: '#/components/schemas/PositiveVersion'
+        sdkVersion:
+          type: string
+          minLength: 1
+          maxLength: 64
+        applicationName:
+          $ref: '#/components/schemas/ResourceId'
+        revisions:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/ServiceRevision'
+        localEjectionCount:
+          type: integer
+          minimum: 0
+        degraded:
+          type: boolean
+          default: false
+    ClientHeartbeatResponse:
+      type: object
+      additionalProperties: false
+      required: [acceptedSequence, leaderEpoch]
+      properties:
+        acceptedSequence:
+          $ref: '#/components/schemas/PositiveVersion'
+        leaderEpoch:
+          $ref: '#/components/schemas/PositiveVersion'
+    StaticInstanceRequest:
+      allOf:
+        - $ref: '#/components/schemas/RegistrationRequest'
+    InstancePatchRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        weight:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        enabled:
+          type: boolean
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+    InstanceMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [instance, directoryRevision, minimumReadIndex]
+      properties:
+        instance:
+          $ref: '#/components/schemas/Instance'
+        directoryRevision:
+          $ref: '#/components/schemas/PositiveVersion'
+        minimumReadIndex:
+          $ref: '#/components/schemas/PositiveVersion'
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [requestId, code, message, retryable, details]
+      properties:
+        requestId:
+          $ref: '#/components/schemas/Ulid'
+        code:
+          type: string
+          pattern: '^[A-Z][A-Z0-9_]*$'
+        message:
+          type: string
+          minLength: 1
+          maxLength: 512
+        retryable:
+          type: boolean
+        details:
+          type: object
+          additionalProperties: true
+security:
+  - bearerAuth: []

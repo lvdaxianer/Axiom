@@ -295,38 +295,50 @@ sdk-api                           registry-protocol
 sdk-api/src/main/java/cc/lvdaxianerplus/affinityroute/api/
 ├── client/
 │   ├── ProviderClient.java
+│   ├── RegistrationHandle.java
 │   ├── DiscoveryClient.java
 │   ├── LoadBalancerClient.java
-│   ├── ServiceHttpClient.java
-│   ├── RegistrationHandle.java
-│   └── SelectionLease.java
+│   ├── SelectionLease.java
+│   └── ServiceHttpClient.java
 ├── model/
 │   ├── ClientScope.java
 │   ├── ServiceName.java
+│   ├── AffinityKey.java
 │   ├── ServiceInstance.java
 │   ├── ServiceSnapshot.java
 │   ├── SelectedInstance.java
-│   ├── SnapshotSource.java
-│   └── AffinityKey.java
+│   ├── InstanceLifecycle.java
+│   ├── HealthStatus.java
+│   └── SnapshotSource.java
 ├── request/
 │   ├── ProviderRegistration.java
 │   ├── ProviderInstanceOptions.java
 │   ├── SelectionRequest.java
-│   └── ServiceRequest.java
+│   ├── ServiceRequest.java
+│   ├── ServiceRequestBuilder.java
+│   ├── HttpMethod.java
+│   └── RequestBody.java
 ├── response/
+│   ├── ServiceResponse.java
 │   ├── DiscoveryStatus.java
 │   ├── RegistrationState.java
-│   └── ServiceResponse.java
+│   ├── RegistrationFailure.java
+│   ├── AttemptSummary.java
+│   └── FailureType.java
 ├── body/
 │   ├── BodyHandler.java
 │   ├── BodyHandlers.java
-│   └── BodyCodec.java
+│   ├── BodyCodec.java
+│   └── ResponseBody.java
 └── error/
+    ├── AffinityRouteException.java
     ├── DiscoveryUnavailableException.java
     ├── NoAvailableInstanceException.java
     ├── OverloadedException.java
     ├── TimeoutBudgetExceededException.java
     ├── IndeterminateWriteException.java
+    ├── RemoteServiceException.java
+    ├── ResponseTooLargeException.java
     └── ClientClosedException.java
 ```
 
@@ -376,6 +388,18 @@ AffinityRoute首版选择第三条路线，理由不是 Nacos无法完成服务�
 
 因此，本方案的核心差异是 AffinityRoute SDK和亲和路由语义；原生 Registry是默认控制面实现，不是项目必须永久维护的唯一后端。
 
+### 4.9 编码级契约
+
+主文档负责总体架构和实施顺序，以下资料固定可直接编码的类、协议、状态和黄金测试向量：
+
+1. [Java 公共 API 契约](./references/Java公共API契约.md)：公共类、校验、线程安全、生命周期、异常和 Starter 装配。
+2. [REST 与 SSE 协议契约](./references/REST与SSE协议契约.md)：Header、状态码、幂等、一致性、SSE 时序和安全。
+3. [OpenAPI 3.1 契约](./references/openapi.yaml)：Registry API 的机器可校验路径和 schema。
+4. [Raft 状态机与快照契约](./references/Raft状态机与快照契约.md)：可复制状态、命令 ADT、apply、Ratis 映射、快照和恢复。
+5. [确定性算法与测试向量](./references/确定性算法与测试向量.md)：哈希字节、精确排序、分布基线、deadline、重试和本地隔离。
+
+若主文档与编码级契约存在粒度差异，实现细节以上述契约为准；改变总体能力、故障边界或一致性级别时，必须先同步主文档。
+
 ## 5. SDK Client 实现
 
 ### 5.1 ProviderClient
@@ -421,7 +445,7 @@ public interface RegistrationHandle extends AutoCloseable {
 实现规则：
 
 1. 注册请求携带稳定 `commandId`，网络重试不得重复创建实例。
-2. 注册成功后保存 sessionId，共享调度器默认每 5 秒续约。
+2. SDK在注册前使用 CSPRNG生成 256 bit session token，只保存在当前 handle内存；注册成功后共享调度器默认每 5 秒携带该 token续约。
 3. 连接非 Leader 时，根据 Leader提示重试。
 4. 单个 `RegistrationHandle.close()` 只注销对应实例。
 5. `ProviderClient.close()` 停止新注册并关闭所有 handle。
@@ -524,16 +548,20 @@ public interface ServiceHttpClient extends AutoCloseable {
 ```java
 SyncResult result = serviceHttpClient.execute(
         ServiceRequest.post(
-                        ServiceName.of("topo-service"),
+                        ServiceName.of(
+                                ClientScope.of("customer-a-prod", "DEFAULT_GROUP"),
+                                "topo-service"),
                         "/projectScene/offlineTopo/sync")
                 .affinityKey(topoId)
-                .jsonBody(Map.of("topoId", topoId))
+                .jsonBody(Map.of("topoId", topoId), bodyCodec)
                 .idempotencyKey(syncTaskId)
                 .timeout(Duration.ofSeconds(5))
                 .build(),
-        BodyHandlers.json(SyncResult.class)
+        BodyHandlers.json(SyncResult.class, bodyCodec)
 ).body();
 ```
+
+`bodyCodec` 由 `affinityroute-sdk` 的 Jackson 实现提供，Starter 会在容器中只有一个 `BodyCodec` 时自动注入；非 Spring 用户在构造 SDK 时显式传入。
 
 内部调用链：
 
@@ -826,7 +854,7 @@ HTTP成功只能在该命令日志达到 Raft `commitIndex` 且 Leader本地 `ap
 
 单条 Raft命令是最小原子边界。注册实例、建立会话、递增资源版本和产生目录事件必须在同一次状态机应用中完成，不能先返回实例成功再异步补事件。首版不提供跨多个独立命令的通用事务；批量操作必须封装成一个有上限的批量命令，整体校验后一次提交，失败时不产生部分结果。
 
-`registrationId`和审计事件 ID可在状态机中由 `clusterId + logIndex + commandType + ordinal` 确定性派生。具有凭证属性的 `sessionId` 必须由 Leader使用 CSPRNG预生成并作为完整命令载荷进入 Raft，所有节点仅持久化强哈希。任何预生成 ID都必须在状态机内校验唯一性，不得由各节点在应用日志时自行生成随机值。
+`registrationId`和审计事件 ID可在状态机中由 `clusterId + logIndex + commandType + ordinal` 确定性派生。具有凭证属性的 session token由 Provider SDK使用 CSPRNG预生成；Server在追加日志前使用集群共享的 session key 计算 HMAC-SHA-256，只将 `keyId + verifier` 作为命令载荷进入 Raft。身份密码等低熵凭证仍使用 Argon2id；256 bit 高熵 session token 的高频续约路径不使用内存困难哈希。任何预生成 ID都必须在状态机内校验唯一性，不得由各节点在应用日志时自行生成随机值。
 
 #### 6.3.2 读取语义
 
@@ -862,7 +890,7 @@ API不提供含义模糊的“强一致布尔开关”。如果节点不能完�
 租约和 Client心跳是软状态，不进入每次 Raft日志，以避免高频写放大。这意味着它们不具备 `LINEARIZABLE`语义：
 
 - Leader使用单调时钟计算本任期内的超时，不把不同节点墙上时钟直接比较。
-- Leader切换后，新 Leader不能把未重建的租约立即判死；进入 `leader-grace-period`并等待 Provider携带 sessionId续约。
+- Leader切换后，新 Leader不能把未重建的租约立即判死；进入 `leader-grace-period`并等待 Provider携带 session token续约。
 - 宽限期结束仍未续约的实例，通过一个 Raft命令转为 `SUSPECT/DOWN`，该可见状态变化才递增 `directoryRevision`。
 - SDK本地隔离只影响当前进程选址，不能直接写成全局 DOWN；Registry健康状态仍以租约和主动探测为准。
 
@@ -875,7 +903,7 @@ Raft日志和状态机快照是 Registry权威恢复来源。快照必须包含�
 - 高频心跳仅更新 Leader内存，不写入 Raft日志。
 - 首次注册、注销和可见健康变化写入 Raft。
 - Leader切换后为全部已提交临时实例提供至少一个租约周期的宽限期。
-- 旧 sessionId 不能续约新的注册会话。
+- 旧 session token 不能续约新的注册会话。
 
 ### 6.5 健康状态
 
@@ -907,7 +935,7 @@ UP → SUSPECT → DOWN → RECOVERING → UP
 | `POST` | `/api/v1/admin/static-instances` | 创建静态实例 |
 | `PATCH` | `/api/v1/admin/instances/{instanceId}` | 权重或上下线 |
 
-除令牌接口外，调用方必须携带 `Authorization: Bearer <access-token>` 和 `X-Request-Id`；所有写接口还必须携带稳定的 `X-Command-Id`。修改已有资源时使用 `If-Match: <resource-version>` 防止覆盖并发变更。注册请求示例：
+除令牌接口外，SDK必须携带 `Authorization: Bearer <access-token>` 和 `X-Request-Id`；注册、注销和管理变更等持久写还必须携带稳定的 `X-Command-Id`。租约和 Client心跳是 Leader内存软状态，使用 session/sequence去重而不声称 Raft commandId保证。修改已有资源时使用 `If-Match: "<resource-version>"` 防止覆盖并发变更。
 
 持久读接口统一接受 `consistency=LINEARIZABLE|STALE`和可选的 `minimumReadIndex=<long>`。未指定时，管理、鉴权和路由诊断使用 `LINEARIZABLE`，只读监控总览可显式使用 `STALE`。所有持久读响应均返回以下元数据，让调用方能判断数据来源和新旧：
 
@@ -928,6 +956,7 @@ POST /api/v1/registrations HTTP/1.1
 Authorization: Bearer <access-token>
 X-Request-Id: 01J3M7ST8Y0P3J2G86KX8G5R3P
 X-Command-Id: 01J3M7T8F70NDNHD7CJHWP7W4Q
+X-Registration-Session: <base64url-256-bit-session-token>
 Content-Type: application/json
 
 {
@@ -950,10 +979,19 @@ Content-Type: application/json
 ```json
 {
   "registrationId": "reg-01J3M7V01Q8XF3M3S8AJQB6R8A",
-  "sessionId": "ses-01J3M7V4Q1VVR6A26GQBS9RHQX",
-  "instanceId": "topo-node-01",
+  "instance": {
+    "instanceId": "topo-node-01",
+    "baseUri": "https://topo-01.example.internal:8180",
+    "weight": 100,
+    "cluster": "default",
+    "metadata": {
+      "version": "2026.07"
+    },
+    "healthStatus": "UP",
+    "lifecycle": "EPHEMERAL",
+    "resourceVersion": 1
+  },
   "directoryRevision": 1024,
-  "resourceVersion": 1,
   "minimumReadIndex": 2987,
   "leaseExpiresAt": "2026-07-24T10:30:15Z"
 }
@@ -975,6 +1013,7 @@ Content-Type: application/json
     "serviceName": "topo-service"
   },
   "generatedAt": "2026-07-24T10:30:00Z",
+  "checksum": "sha256:6d0f4c85f36c9a15b73c6e355b960f65ad6e6a6e779da4f60f6e7866d8f01c31",
   "instances": [
     {
       "instanceId": "topo-node-01",
@@ -1011,6 +1050,7 @@ SSE事件只包含版本化变更，一条连接只订阅一个完整 `ServiceKe
 - Provider、Consumer和控制台 API使用 TLS。
 - `clientId + secret` 兑换短期令牌。
 - secret仅保存强哈希。
+- Provider session token 使用集群共享 keyring 的 HMAC-SHA-256 verifier，支持 current/previous key 重叠轮换，不写入 token 原文。
 - 访问令牌使用短期签名 JWT；三个节点挂载同一套令牌签名材料，任一节点都能本地验签。
 - 控制台会话使用集群共享密钥签名并加密的 Cookie，不在单节点内存保存登录态。
 - 权限绑定 namespace、group、服务模式和操作。
@@ -1347,10 +1387,10 @@ mvn -pl distribution -am package -Poffline
 ./distribution/bin/init-cluster-secrets.sh \
   --token-key ./runtime/secrets/token-signing.key \
   --token-certificate ./runtime/pki/token-signing.crt \
-  --session-key ./runtime/secrets/session-signing.key
+  --session-key ./runtime/secrets/session-hmac-current.key
 ```
 
-脚本只将初始密码和集群签名材料写入权限受限文件，不打印到标准输出。三个 Registry节点必须安全分发同一套令牌和会话签名材料；首次登录后必须修改密码。
+脚本只将初始密码和集群签名材料写入权限受限文件，不打印到标准输出。三个 Registry节点必须安全分发同一套令牌材料与 session HMAC keyring；轮换时先部署 `previous` + `current`、等待最长租约和 Leader 宽限期后再移除旧 key。首次登录后必须修改密码。
 
 ### 9.6 三节点配置
 
@@ -1671,6 +1711,11 @@ affinityroute_lb_no_available_instance_total
 
 ## 15. 参考资料
 
+- [Java 公共 API 契约](./references/Java公共API契约.md)
+- [REST 与 SSE 协议契约](./references/REST与SSE协议契约.md)
+- [OpenAPI 3.1 契约](./references/openapi.yaml)
+- [Raft 状态机与快照契约](./references/Raft状态机与快照契约.md)
+- [确定性算法与测试向量](./references/确定性算法与测试向量.md)
 - [Nacos官方介绍](https://nacos.io/docs/latest/what-is-nacos/)
 - [Nacos GitHub仓库](https://github.com/alibaba/nacos)
 - [Registry Server 配置示例](./references/registry-server.example.yaml)

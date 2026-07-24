@@ -22,6 +22,7 @@ affinityroute:
       reconciliation-interval: 60s
     provider:
       enabled: false
+      shutdown-timeout: 5s
       service-name: yunkan-service
       instance-id: ${HOSTNAME}
       advertised-host: ${DISCOVERY_ADVERTISED_HOST}
@@ -37,7 +38,10 @@ affinityroute:
         half-open-max-concurrency: 1
     http:
       total-timeout: 5s
+      maximum-timeout: 30s
       max-attempts: 2
+      retryable-statuses: []
+      minimum-attempt-budget: 50ms
       max-concurrency-per-instance: 100
       acquire-timeout: 100ms
       max-response-bytes: 10485760
@@ -77,6 +81,7 @@ affinityroute:
         affinity:
           source: JSON_BODY
           expression: /topoId
+          on-missing: FAIL
         idempotent: true
 
 management:
