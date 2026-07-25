@@ -213,6 +213,7 @@ sealed interface RegistryCommand permits
 3. `requestDigest` 由 API 层对 RFC 8785 规范请求描述符计算；描述符包含 method、canonical path/query、principalId、规范 Body、`If-Match` 和 session verifier 等全部语义输入，不包含 token 原文。状态机从 envelope 和 command 重建同一描述符并对比，禁止无边界字符串拼接。
 4. `submittedAtEpochMillis` 是审计展示值，不参与命令排序、版本号和租约计算。
 5. 命令大小默认上限 1 MiB，批量命令最多 500 个子操作且总字节数仍受 1 MiB 限制。
+6. `schemaVersion` 只增不减。滚动升级期间新版本进程在确认集群全部节点支持前，只能写入旧 `schemaVersion` 的命令；节点读到不支持的 `schemaVersion` 必须失败并拒绝启动，不得跳过或降级解析。
 
 ## 5. 确定性 apply 顺序
 

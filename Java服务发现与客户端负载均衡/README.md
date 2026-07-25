@@ -68,6 +68,7 @@ http://10.100.30.239:8180/projectScene/offlineTopo/sync
 - 非 Java SDK。
 - gRPC、自定义 TCP协议或异步 HTTP API。
 - 自动扩缩容和复杂灰度编排。
+- OpenTelemetry、W3C TraceContext等分布式追踪传播（首版只保证 `X-Request-Id` 贯通，追踪集成列入后续演进）。
 
 ## 3. 总体架构
 
@@ -397,6 +398,7 @@ AffinityRoute首版选择第三条路线，理由不是 Nacos无法完成服务�
 3. [OpenAPI 3.1 契约](./references/openapi.yaml)：Registry API 的机器可校验路径和 schema。
 4. [Raft 状态机与快照契约](./references/Raft状态机与快照契约.md)：可复制状态、命令 ADT、apply、Ratis 映射、快照和恢复。
 5. [确定性算法与测试向量](./references/确定性算法与测试向量.md)：哈希字节、精确排序、分布基线、deadline、重试和本地隔离。
+6. [模块内部包结构契约](./references/模块内部包结构契约.md)：各 Maven 模块的包级目录、职责边界和 ArchUnit 校验依据。
 
 若主文档与编码级契约存在粒度差异，实现细节以上述契约为准；改变总体能力、故障边界或一致性级别时，必须先同步主文档。
 
@@ -495,7 +497,9 @@ public record ServiceSnapshot(
   → 低频 revision 对账
 ```
 
-磁盘快照必须包含 `schemaVersion`、`revision`、生成时间和校验和。写入使用临时文件加原子 rename；写入队列容量为 1，只保留最新 revision。
+磁盘快照必须包含 `schemaVersion`、`revision`、生成时间和校验和。写入使用临时文件加原子 rename；写入队列容量为 1，只保留最新 revision。快照只包含实例地址、权重等低敏元数据，不加密落盘；凭证、session token和原始 affinity ID一律不进入快照。
+
+一个 `DiscoveryClient` 绑定一个 `ClientScope`（namespace + group），禁止跨 namespace访问。需要访问多个 namespace的应用，首版通过显式构造多个 `DiscoveryClient` 实例（或多个 ApplicationContext）实现，"每 context一个 DiscoveryClient" 的默认装配不变；单 Client多 scope订阅列入后续演进。
 
 ### 5.3 LoadBalancerClient
 
@@ -776,6 +780,13 @@ Starter通过 `@ConfigurationProperties(prefix = "affinityroute")` 绑定配置�
 ```
 
 不使用 Spring Boot 的应用由 `affinityroute-sdk` 聚合 `sdk-api`、`registry-client`、`lb-core` 和 `lb-http-client`，并通过 `DiscoveryClients.builder()` 显式组装；两种接入方式必须复用相同实现，不能维护两套行为。
+
+### 5.11 策略配置与下发
+
+- 首版的调用策略（超时、重试、并发上限、隔离阈值）只来自本地配置（Spring `affinityroute.*` 属性或 builder显式组装），重启后生效，不做运行时下发。
+- 控制台 settings页管理的 namespace、group和默认策略仅作为新接入应用的配置模板，不推送到运行中的 SDK。
+- 实例 weight是唯一运行时生效的路由参数，经 Raft提交和 SSE事件正常下发。
+- 运行时策略下发列入后续演进；实现时必须复用目录 revision机制并显式声明一致性级别，不能形成第二套配置通道。
 
 ## 6. 注册中心实现
 
@@ -1068,6 +1079,30 @@ SECURITY_ADMIN
 SYSTEM_ADMIN
 ```
 
+### 6.8 实例下线与连接排空
+
+- 权重调 0或健康转为 DOWN后，实例从后续快照的候选集合中排除；已选中该实例的在途调用继续使用其固定 revision直到结束，不被强制中断。
+- SDK连接池按 instanceId管理连接；实例从目录移除或 baseUri变更后，对应空闲连接在常规回收周期内关闭，不复用到新实例。
+- Provider优雅下线建议顺序：注销或权重置 0 → 等待一个可配置的 drain窗口（默认建议 5 秒）→ 停止监听。控制台下线操作必须提示该窗口。
+- 全局广播的下线事件不追溯中断在途请求；在途调用失败按既有 deadline、重试和本地隔离规则处理。
+
+### 6.9 配额与防护
+
+容量假设不是防护机制。注册中心必须提供以下有界护栏，默认值按 200 个服务、2,000 个实例的全局规模校准，可按部署调整：
+
+- 每 namespace服务数上限、每服务实例数上限；超限写入返回 429和 `RATE_LIMITED`。
+- 注册、注销、静态实例和权重变更等持久写按 clientId限流；不阻断租约续约。
+- 每节点 SSE连接数上限和单 Client订阅数上限；超限拒绝新订阅并返回结构化错误。
+- 目录变更速率超过容量假设时不静默降级：写路径按配额拒绝，同时通过指标和告警暴露当前用量与上限比例。
+- 配额超限事件进入审计。
+
+### 6.10 审计保留与导出
+
+- 审计事件随 Raft日志持久化，状态机内只保留有界审计索引（默认最近 10,000 条，可配置），超出部分依赖日志快照与外部归档。
+- 审计索引清理由 Leader定期提交的确定性命令执行，与 `ExpireCommandResults` 使用同一类机制，不产生目录事件。
+- 控制台审计查询只读取有界索引；需要长期留存时在部署侧归档 Raft备份或外发日志系统。
+- 审计保留期和容量必须写入配置并对外公开，不得无限增长撑大状态机快照。
+
 ## 7. 统一控制台实现
 
 ### 7.1 技术栈
@@ -1133,6 +1168,20 @@ console-web/src/
 │   └── utils/
 └── tests/
 ```
+
+每个 feature子域内部结构统一为：
+
+```text
+features/<domain>/
+├── api.ts            本域 API 调用和 TanStack Query hooks，唯一允许发起 HTTP 的位置
+├── types.ts          本域类型和 Zod schema
+├── components/       本域展示组件
+└── composables/      本域副作用和状态逻辑
+```
+
+- feature之间不得互相 import；跨 feature复用的组件、composable和类型必须下沉到 `shared/`。
+- Route Page只组合 feature组件，不直接调用 `api.ts` 之外的 HTTP入口。
+- feature内文件超出 350 行限制时按职责拆分组件或 composable，不新增平级目录。
 
 ### 7.3 页面
 
@@ -1316,6 +1365,14 @@ REST路径使用主版本 `/api/v1`。JSON增加字段必须向后兼容；删�
 ```
 
 公共 `sdk-api` 使用 Revapi或 japicmp建立二进制兼容门禁。
+
+### 8.4 滚动升级与版本兼容
+
+- 三节点滚动升级期间允许相邻两个 minor版本混跑，不允许跳版本混跑；升级顺序为先全部 Follower、最后 Leader。
+- Raft日志和快照的 `schemaVersion` 只增不减；新版本必须能读取前一版本的快照和日志，不能读取时拒绝启动并提示先升级到中间版本。
+- SDK与 Server兼容窗口：Server对前两个 minor版本的 SDK保持 REST/SSE协议兼容；SDK不依赖高于自身版本的 Server新增字段。
+- 每次发布在 CI运行版本偏斜测试：旧 SDK + 新 Server、新旧节点混合集群的选举和读写。
+- 兼容矩阵写入 BOM和发行说明，与依赖锁定版本同步更新。
 
 ## 9. 部署步骤
 
@@ -1521,6 +1578,7 @@ mvn -pl performance-tests verify -Ptarget-scale
 - 同一 ID路由稳定。
 - 权重分布在预设统计误差范围内。
 - 离线环境安装不访问互联网。
+- 离线包生成 SBOM，并通过 CVE扫描和许可证审查门禁。
 
 ## 11. 风险与边界
 
@@ -1541,6 +1599,7 @@ mvn -pl performance-tests verify -Ptarget-scale
 | commandId去重窗口过期后重试可能重复执行 | 公开去重保留时长和容量，SDK在窗口内完成重试，核心业务另设长期业务幂等键 |
 | 备份恢复后旧集群与新集群同时写入造成分裂 | 恢复前隔离旧集群、校验 clusterId、换发访问入口和凭证，以单一写入集群为验收门禁 |
 | 原生 Registry的共识、安全与升级维护超出团队能力 | 设置可量化退出条件，保留 Registry transport适配边界，门禁失败时切换成熟目录后端 |
+| 异常或恶意 Client打爆控制面 | 每 namespace/服务配额、按 clientId限流、SSE连接上限，超限拒写并告警审计 |
 
 ## 12. 排障方式
 
@@ -1584,7 +1643,7 @@ affinityroute_lb_no_available_instance_total
 
 | 任务 | 主要文件 | 首个失败测试 | 聚焦验证命令 |
 | --- | --- | --- | --- |
-| T01 工程与契约 | `pom.xml`、`sdk-api/src/main/java/cc/lvdaxianerplus/affinityroute/api/**`、`registry-protocol/src/main/java/cc/lvdaxianerplus/affinityroute/protocol/**` | `architecture-tests/src/test/java/cc/lvdaxianerplus/affinityroute/architecture/ModuleDependencyTest.java` | `mvn -pl architecture-tests -am test` |
+| T01 工程与契约 | `pom.xml`、`sdk-api/src/main/java/cc/lvdaxianerplus/affinityroute/api/**`、`registry-protocol/src/main/java/cc/lvdaxianerplus/affinityroute/protocol/**`、`references/模块内部包结构契约.md` | `architecture-tests/src/test/java/cc/lvdaxianerplus/affinityroute/architecture/ModuleDependencyTest.java` | `mvn -pl architecture-tests -am test` |
 | T02 负载算法 | `lb-core/src/main/java/cc/lvdaxianerplus/affinityroute/loadbalancer/**` | `lb-core/src/test/java/cc/lvdaxianerplus/affinityroute/loadbalancer/WeightedRendezvousHashTest.java`、`WeightedLeastConcurrencyTest.java` | `mvn -pl lb-core -am test` |
 | T03 目录状态机 | `registry-ratis/src/main/java/cc/lvdaxianerplus/affinityroute/registry/ratis/catalog/**` | `CatalogStateMachineTest`先覆盖 commandId原结果、If-Match竞争和revision确定性 | `mvn -pl registry-ratis -am test` |
 | T04 Ratis适配 | `registry-ratis/src/main/java/cc/lvdaxianerplus/affinityroute/registry/ratis/consensus/**` | `ThreeNodeConsensusTest`先覆盖已确认写不丢失、ReadIndex线性读和快照恢复 | `mvn -pl registry-ratis -am verify` |
@@ -1708,6 +1767,9 @@ affinityroute_lb_no_available_instance_total
 5. 增加跨地域只读目录副本和明确的故障切换策略。
 6. 增加非 Java SDK，并复用同一协议兼容测试。
 7. 增加基于审批的灰度权重计划和定时变更。
+8. 增加 OpenTelemetry / W3C TraceContext传播，保持 `X-Request-Id` 行为兼容。
+9. 增加单 `DiscoveryClient` 多 ClientScope订阅，减少多 namespace应用的 Client数量。
+10. 增加运行时策略下发，复用目录 revision机制并显式声明一致性级别。
 
 ## 15. 参考资料
 
@@ -1716,6 +1778,7 @@ affinityroute_lb_no_available_instance_total
 - [OpenAPI 3.1 契约](./references/openapi.yaml)
 - [Raft 状态机与快照契约](./references/Raft状态机与快照契约.md)
 - [确定性算法与测试向量](./references/确定性算法与测试向量.md)
+- [模块内部包结构契约](./references/模块内部包结构契约.md)
 - [Nacos官方介绍](https://nacos.io/docs/latest/what-is-nacos/)
 - [Nacos GitHub仓库](https://github.com/alibaba/nacos)
 - [Registry Server 配置示例](./references/registry-server.example.yaml)

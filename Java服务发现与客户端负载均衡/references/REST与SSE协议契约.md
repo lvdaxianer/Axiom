@@ -254,7 +254,7 @@ Client 心跳不上报 affinity key、业务 URL、请求 Body、token、Cookie 
 | 409 | `CATALOG_REVISION_GAP` | true | 增量起点已不可用 |
 | 412 | `RESOURCE_VERSION_CONFLICT` | false | If-Match 与当前版本不一致 |
 | 428 | `PRECONDITION_REQUIRED` | false | 要求 If-Match 但未提供 |
-| 429 | `RATE_LIMITED` | true | 鉴权或管理 API 限流 |
+| 429 | `RATE_LIMITED` | true | 鉴权、管理 API、注册写限流或配额超限，details 携带配额维度与上限 |
 | 503 | `NOT_LEADER` | true | 需要 Leader，details 可包含受信任 leaderEndpoint |
 | 503 | `CONSISTENCY_UNAVAILABLE` | true | 线性读无法完成 |
 | 503 | `CLUSTER_NOT_WRITABLE` | true | 失去 Raft 多数派 |
@@ -268,6 +268,8 @@ Client 心跳不上报 affinity key、业务 URL、请求 Body、token、Cookie 
 2. SDK 只对连接失败、HTTP 307/503 的明确可重试错误以及 429 且存在合法 `Retry-After` 时重试。
 3. 持久写只能使用原 commandId 重试；续约和心跳只能使用原 sequence 重试。
 4. Server 对 token 端点按 clientId 和网络源限流，对管理写按 principalId 限流，不对租约使用会阻断正常续约的全局限流器。
+5. Server 对注册、注销等持久写按 clientId 限流；每 namespace服务数、每服务实例数设有配额上限，超限返回 429和 `RATE_LIMITED`，details 携带配额维度与当前上限。
+6. 每节点 SSE连接数和单 Client订阅数设有上限，超限拒绝新订阅并返回 429；所有配额和限流超限事件进入审计。
 
 ## 10. 兼容性和协议测试
 
