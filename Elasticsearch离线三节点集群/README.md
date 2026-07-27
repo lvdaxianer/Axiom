@@ -78,6 +78,17 @@ image:
 
 `repository` 和 `digest` 是部署前必须填写的值，不提供可误用的公共仓库默认值。
 
+在 x86_64/AMD64 测试环境中，可叠加仓库提供的测试覆盖文件。它只替换镜像和节点架构，其他离线、MetalLB、NFS 和安全参数仍复用有效 fixture：
+
+```bash
+helm template es-cluster ./chart \
+  --namespace uino \
+  -f ./chart/tests/fixtures/valid-values.yaml \
+  -f ./chart/values.x86.example.yaml
+```
+
+`values.x86.example.yaml` 使用 `10.100.30.139/library/elasticsearch:7.10.2` 的 AMD64 digest，仅用于 x86 测试。客户 ARM64 环境继续使用 `values.customer.example.yaml` 或自己的 ARM64 镜像覆盖值，不要将 x86 覆盖文件用于 ARM64 Worker。
+
 ## 数据持久化
 
 三个 Pod 使用共享挂载点下相互隔离的数据子目录：

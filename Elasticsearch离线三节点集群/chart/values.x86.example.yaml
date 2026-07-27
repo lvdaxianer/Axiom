@@ -1,0 +1,9 @@
+# 文件说明：提供 x86_64/AMD64 测试使用的私有镜像和节点调度覆盖值。
+# 使用方式：helm template ... -f tests/fixtures/valid-values.yaml -f values.x86.example.yaml。
+# 该文件仅用于 139 测试环境，客户 ARM64 部署继续使用 ARM64 values。
+image: # 行说明：覆盖为客户私有仓库中的 x86_64 Elasticsearch 镜像。
+  repository: 10.100.30.139/library/elasticsearch # 行说明：指定 139 服务器私有仓库中的 Elasticsearch 镜像路径。
+  tag: 7.10.2 # 行说明：使用远程服务器已确认的 Elasticsearch 7.10.2 镜像标签。
+  digest: sha256:cce094529ca2f542ece2e52354763d9b1beb56458982b35b13fab7035c861910 # 行说明：固定已确认的 linux/amd64 镜像内容。
+nodeSelector: # 行说明：将 x86 测试工作负载调度到 AMD64 Worker。
+  kubernetes.io/arch: amd64 # 行说明：要求目标 Worker 架构为 amd64。
