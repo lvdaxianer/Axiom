@@ -40,8 +40,7 @@ metadata:
 spec:
   {{/* 行说明：指定外部访问 Service 类型，离线部署使用 LoadBalancer。 */ -}}
   type: {{ .Values.service.type }}
-  {{/* 行说明：指定 MetalLB 为 Elasticsearch 保留的固定访问 IP。 */ -}}
-  loadBalancerIP: {{ .Values.service.loadBalancerIP | quote }}
+  # 固定 IP 仅通过 MetalLB 注解传递，避免 v0.16+ 将重复字段判定为冲突。
   # Local 保留外部客户端源地址，使 NetworkPolicy ipBlock 可按 CIDR 判断。
   {{/* 行说明：保留外部客户端源地址供访问控制判断。 */ -}}
   externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy }}

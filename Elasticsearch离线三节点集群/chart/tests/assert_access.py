@@ -101,7 +101,8 @@ def assert_http_service(items: list[dict[str, Any]]) -> dict[str, Any]:
     """
     service = one(items, "Service", SERVICE_NAME)
     spec = service["spec"]
-    assert spec["type"] == "LoadBalancer" and spec["loadBalancerIP"] == SERVICE_IP
+    assert spec["type"] == "LoadBalancer"
+    assert "loadBalancerIP" not in spec
     assert spec["externalTrafficPolicy"] == "Local"
     assert spec["loadBalancerSourceRanges"] == [SOURCE_CIDR] and spec["selector"] == ES_SELECTOR  # fmt: skip
     assert spec["ports"] == [{"name": "http", "protocol": "TCP", "port": 9200, "targetPort": "http"}]  # fmt: skip

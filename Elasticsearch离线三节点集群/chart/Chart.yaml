@@ -3,5 +3,5 @@ apiVersion: v2 # 行说明：指定 Kubernetes 或 Helm 使用的 API 版本。
 name: uino-elasticsearch # 行说明：设置 Helm Chart 名称并参与生成 Kubernetes 资源名。
 description: Offline three-node Elasticsearch 7.10.2 ARM64 cluster # 行说明：说明 Chart 的部署目标和适用架构。
 type: application # 行说明：声明这是可安装的应用 Chart，而不是依赖库 Chart。
-version: 0.1.0 # 行说明：设置 Chart 包版本，内容变化后应同步递增。
+version: 0.1.1 # 行说明：设置 Chart 包版本，内容变化后应同步递增。
 appVersion: "7.10.2" # 行说明：声明该 Chart 对应的 Elasticsearch 应用版本。
