@@ -50,24 +50,69 @@ find_missing_purpose_comments() {
       done
 }
 
+# 输出缺少独立前置行说明的 Helm 模板位置。
+# Args: $1 为待审计模板文件。
+# Returns: 每行一个“相对路径:行号”；全部合格时无输出。
+# Author: lvdaxianer@yeah.net
+# Date: 2026-07-27
+find_missing_template_line_comments() {
+  awk -v prefix="${1#"${CHART_DIR}/"}" '
+    /^[[:space:]]*$/ { next }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*\{\{[-]?[[:space:]]*\/\*/ {
+      has_explanation = index($0, "行说明：") > 0
+      next
+    }
+    !has_explanation { print prefix ":" NR }
+    { has_explanation = 0 }
+  ' "$1"
+}
+
+# 输出缺少同行 # 行说明的普通 YAML 位置。
+# Args: $1 为待审计 YAML 文件。
+# Returns: 每行一个“相对路径:行号”；全部合格时无输出。
+# Author: lvdaxianer@yeah.net
+# Date: 2026-07-27
+find_missing_yaml_line_comments() {
+  awk -v prefix="${1#"${CHART_DIR}/"}" '
+    /^[[:space:]]*$/ { next }
+    /^[[:space:]]*#/ { next }
+    index($0, "# 行说明：") == 0 { print prefix ":" NR }
+  ' "$1"
+}
+
 # 输出缺少逐行中文说明的部署源码位置。
 # Args: 无，读取 setup 初始化的 LINE_COMMENT_FILES。
 # Returns: 每行一个“相对路径:行号”；全部合格时无输出。
 # Author: lvdaxianer@yeah.net
 # Date: 2026-07-21
 find_missing_line_comments() {
-  local file marker
+  local file
   for file in "${LINE_COMMENT_FILES[@]}"; do
-    marker="# 行说明："
-    # Helm 模板使用不会进入渲染结果的 Go template 注释标记。
-    [[ "$file" == *"/templates/"* ]] && marker="行说明："
-    awk -v prefix="${file#"${CHART_DIR}/"}" -v marker="$marker" '
-      /^[[:space:]]*$/ { next }
-      /^[[:space:]]*#/ { next }
-      /^[[:space:]]*\{\{[-]?[[:space:]]*\/\*/ { next }
-      index($0, marker) == 0 { print prefix ":" NR }
-    ' "$file"
+    # Helm 模板与普通 YAML 使用各自合法且易读的注释格式。
+    if [[ "$file" == *"/templates/"* ]]; then
+      find_missing_template_line_comments "$file"
+    else
+      find_missing_yaml_line_comments "$file"
+    fi
   done
+}
+
+# 输出仍与有效内容共用一行的 Helm 行说明位置。
+# Args: 无，读取 setup 初始化的 CHART_DIR。
+# Returns: 每行一个“相对路径:行号”；全部为独立注释行时无输出。
+# Author: lvdaxianer@yeah.net
+# Date: 2026-07-27
+find_embedded_template_comments() {
+  find "$CHART_DIR/templates" -type f \( -name '*.yaml' -o -name '*.tpl' \) \
+    | sort \
+    | while IFS= read -r file; do
+        awk -v prefix="${file#"${CHART_DIR}/"}" '
+          /行说明：/ && $0 !~ /^[[:space:]]*\{\{[-]?[[:space:]]*\/\*.*\*\/[[:space:]]*[-]?\}\}[[:space:]]*$/ {
+            print prefix ":" NR
+          }
+        ' "$file"
+      done
 }
 
 # 验证所有非 JSON 源文件的头部职责说明。
@@ -95,6 +140,19 @@ find_missing_line_comments() {
   missing="$(find_missing_line_comments)"
   [ -z "$missing" ] || {
     printf '以下源码行缺少逐行中文说明：\n%s\n' "$missing"
+    return 1
+  }
+}
+
+# 验证 Helm 行说明使用独立注释行，不与有效 YAML 或模板表达式混排。
+# Args: 无，使用 setup 初始化的模板目录。
+# Returns: 所有行说明均独立成行时通过，否则输出嵌入位置。
+# Author: lvdaxianer@yeah.net
+# Date: 2026-07-27
+@test "Helm line comments are standalone source lines" {
+  embedded="$(find_embedded_template_comments)"
+  [ -z "$embedded" ] || {
+    printf '以下 Helm 行说明与有效内容嵌入在同一行：\n%s\n' "$embedded"
     return 1
   }
 }

@@ -1,195 +1,386 @@
 {{- /* 文件说明：运行三个 Elasticsearch 主数据节点，并配置共享数据目录、安全上下文、TLS 和健康探针。 */ -}}
-{{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- include "uino-elasticsearch.validateHeap" . -}}
-apiVersion: apps/v1{{/* 行说明：指定 Kubernetes 或 Helm 使用的 API 版本。 */}}
-kind: StatefulSet{{/* 行说明：声明当前清单创建的 Kubernetes 资源类型。 */}}
-metadata:{{/* 行说明：配置 metadata 字段，形成 statefulset.yaml 所需资源。 */}}
-  name: {{ include "uino-elasticsearch.fullname" . }}{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-  labels:{{/* 行说明：配置 labels 字段，形成 statefulset.yaml 所需资源。 */}}
-    {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- include "uino-elasticsearch.labels" . | nindent 4 }}
-spec:{{/* 行说明：配置 spec 字段，形成 statefulset.yaml 所需资源。 */}}
-  replicas: 3{{/* 行说明：固定运行三个 Elasticsearch 集群节点。 */}}
-  serviceName: {{ include "uino-elasticsearch.headlessServiceName" . }}{{/* 行说明：绑定无头 Service 以提供稳定 Pod DNS 身份。 */}}
-  podManagementPolicy: Parallel{{/* 行说明：允许三个节点并行创建以缩短首次集群启动时间。 */}}
-  updateStrategy:{{/* 行说明：配置 updateStrategy 字段，形成 statefulset.yaml 所需资源。 */}}
-    type: RollingUpdate{{/* 行说明：按 StatefulSet 序号滚动更新 Elasticsearch Pod。 */}}
-  selector:{{/* 行说明：配置 selector 字段，形成 statefulset.yaml 所需资源。 */}}
-    matchLabels:{{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */}}
-      {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- include "uino-elasticsearch.selectorLabels" . | nindent 6 }}
-  template:{{/* 行说明：配置 template 字段，形成 statefulset.yaml 所需资源。 */}}
-    metadata:{{/* 行说明：配置 metadata 字段，形成 statefulset.yaml 所需资源。 */}}
-      labels:{{/* 行说明：配置 labels 字段，形成 statefulset.yaml 所需资源。 */}}
-        {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- include "uino-elasticsearch.selectorLabels" . | nindent 8 }}
-      annotations:{{/* 行说明：将 values 中的自定义注解附加到每个 Elasticsearch Pod。 */}}
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}{{/* 行说明：配置 checksum/config 字段，形成 statefulset.yaml 所需资源。 */}}
-    spec:{{/* 行说明：配置 spec 字段，形成 statefulset.yaml 所需资源。 */}}
-      terminationGracePeriodSeconds: 120{{/* 行说明：配置 terminationGracePeriodSeconds 字段，形成 statefulset.yaml 所需资源。 */}}
-      securityContext:{{/* 行说明：配置 securityContext 字段，形成 statefulset.yaml 所需资源。 */}}
-        runAsNonRoot: true{{/* 行说明：配置 runAsNonRoot 字段，形成 statefulset.yaml 所需资源。 */}}
-        runAsUser: 1000{{/* 行说明：配置 runAsUser 字段，形成 statefulset.yaml 所需资源。 */}}
-        runAsGroup: 1000{{/* 行说明：配置 runAsGroup 字段，形成 statefulset.yaml 所需资源。 */}}
-        fsGroup: 1000{{/* 行说明：配置 fsGroup 字段，形成 statefulset.yaml 所需资源。 */}}
-        fsGroupChangePolicy: OnRootMismatch{{/* 行说明：配置 fsGroupChangePolicy 字段，形成 statefulset.yaml 所需资源。 */}}
-      nodeSelector:{{/* 行说明：将 Elasticsearch 和快照任务限定到匹配架构的 Worker。 */}}
-        {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- toYaml .Values.nodeSelector | nindent 8 }}
-      {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- with .Values.image.pullSecrets }}
-      imagePullSecrets:{{/* 行说明：配置 imagePullSecrets 字段，形成 statefulset.yaml 所需资源。 */}}
-        {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- toYaml . | nindent 8 }}
-      {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}{{- end }}
-      affinity:{{/* 行说明：配置 affinity 字段，形成 statefulset.yaml 所需资源。 */}}
+{{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+{{- include "uino-elasticsearch.validateHeap" . -}}
+{{/* 行说明：指定 Kubernetes 或 Helm 使用的 API 版本。 */ -}}
+apiVersion: apps/v1
+{{/* 行说明：声明当前清单创建的 Kubernetes 资源类型。 */ -}}
+kind: StatefulSet
+{{/* 行说明：配置 metadata 字段，形成 statefulset.yaml 所需资源。 */ -}}
+metadata:
+  {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+  name: {{ include "uino-elasticsearch.fullname" . }}
+  {{/* 行说明：配置 labels 字段，形成 statefulset.yaml 所需资源。 */ -}}
+  labels:
+    {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+    {{- include "uino-elasticsearch.labels" . | nindent 4 }}
+{{/* 行说明：配置 spec 字段，形成 statefulset.yaml 所需资源。 */ -}}
+spec:
+  {{/* 行说明：固定运行三个 Elasticsearch 集群节点。 */ -}}
+  replicas: 3
+  {{/* 行说明：绑定无头 Service 以提供稳定 Pod DNS 身份。 */ -}}
+  serviceName: {{ include "uino-elasticsearch.headlessServiceName" . }}
+  {{/* 行说明：允许三个节点并行创建以缩短首次集群启动时间。 */ -}}
+  podManagementPolicy: Parallel
+  {{/* 行说明：配置 updateStrategy 字段，形成 statefulset.yaml 所需资源。 */ -}}
+  updateStrategy:
+    {{/* 行说明：按 StatefulSet 序号滚动更新 Elasticsearch Pod。 */ -}}
+    type: RollingUpdate
+  {{/* 行说明：配置 selector 字段，形成 statefulset.yaml 所需资源。 */ -}}
+  selector:
+    {{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */ -}}
+    matchLabels:
+      {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+      {{- include "uino-elasticsearch.selectorLabels" . | nindent 6 }}
+  {{/* 行说明：配置 template 字段，形成 statefulset.yaml 所需资源。 */ -}}
+  template:
+    {{/* 行说明：配置 metadata 字段，形成 statefulset.yaml 所需资源。 */ -}}
+    metadata:
+      {{/* 行说明：配置 labels 字段，形成 statefulset.yaml 所需资源。 */ -}}
+      labels:
+        {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+        {{- include "uino-elasticsearch.selectorLabels" . | nindent 8 }}
+      {{/* 行说明：将 values 中的自定义注解附加到每个 Elasticsearch Pod。 */ -}}
+      annotations:
+        {{/* 行说明：配置 checksum/config 字段，形成 statefulset.yaml 所需资源。 */ -}}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    {{/* 行说明：配置 spec 字段，形成 statefulset.yaml 所需资源。 */ -}}
+    spec:
+      {{/* 行说明：配置 terminationGracePeriodSeconds 字段，形成 statefulset.yaml 所需资源。 */ -}}
+      terminationGracePeriodSeconds: 120
+      {{/* 行说明：配置 securityContext 字段，形成 statefulset.yaml 所需资源。 */ -}}
+      securityContext:
+        {{/* 行说明：配置 runAsNonRoot 字段，形成 statefulset.yaml 所需资源。 */ -}}
+        runAsNonRoot: true
+        {{/* 行说明：配置 runAsUser 字段，形成 statefulset.yaml 所需资源。 */ -}}
+        runAsUser: 1000
+        {{/* 行说明：配置 runAsGroup 字段，形成 statefulset.yaml 所需资源。 */ -}}
+        runAsGroup: 1000
+        {{/* 行说明：配置 fsGroup 字段，形成 statefulset.yaml 所需资源。 */ -}}
+        fsGroup: 1000
+        {{/* 行说明：配置 fsGroupChangePolicy 字段，形成 statefulset.yaml 所需资源。 */ -}}
+        fsGroupChangePolicy: OnRootMismatch
+      {{/* 行说明：将 Elasticsearch 和快照任务限定到匹配架构的 Worker。 */ -}}
+      nodeSelector:
+        {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+      {{- with .Values.image.pullSecrets }}
+      {{/* 行说明：配置 imagePullSecrets 字段，形成 statefulset.yaml 所需资源。 */ -}}
+      imagePullSecrets:
+        {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+        {{- toYaml . | nindent 8 }}
+      {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}
+      {{- end }}
+      {{/* 行说明：配置 affinity 字段，形成 statefulset.yaml 所需资源。 */ -}}
+      affinity:
         # 强制三个副本分散到不同 Worker，单机故障不会同时丢失多数节点。
-        podAntiAffinity:{{/* 行说明：配置 podAntiAffinity 字段，形成 statefulset.yaml 所需资源。 */}}
-          requiredDuringSchedulingIgnoredDuringExecution:{{/* 行说明：配置 requiredDuringSchedulingIgnoredDuringExecution 字段，形成 statefulset.yaml 所需资源。 */}}
-            - labelSelector:{{/* 行说明：配置 labelSelector 字段，形成 statefulset.yaml 所需资源。 */}}
-                matchLabels:{{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */}}
-                  {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- include "uino-elasticsearch.selectorLabels" . | nindent 18 }}
-              topologyKey: kubernetes.io/hostname{{/* 行说明：配置 topologyKey 字段，形成 statefulset.yaml 所需资源。 */}}
-      initContainers:{{/* 行说明：配置 initContainers 字段，形成 statefulset.yaml 所需资源。 */}}
-        - name: prepare{{/* 行说明：命名负责准备节点数据目录和运行时配置的初始化容器。 */}}
-          image: {{ include "uino-elasticsearch.image" . | quote }}{{/* 行说明：集中配置离线私有仓库中的 Elasticsearch 镜像。 */}}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}{{/* 行说明：配置 imagePullPolicy 字段，形成 statefulset.yaml 所需资源。 */}}
-          securityContext:{{/* 行说明：配置 securityContext 字段，形成 statefulset.yaml 所需资源。 */}}
-            runAsNonRoot: true{{/* 行说明：配置 runAsNonRoot 字段，形成 statefulset.yaml 所需资源。 */}}
-            runAsUser: 1000{{/* 行说明：配置 runAsUser 字段，形成 statefulset.yaml 所需资源。 */}}
-            runAsGroup: 1000{{/* 行说明：配置 runAsGroup 字段，形成 statefulset.yaml 所需资源。 */}}
-          command: ["/bin/bash", "-ec"]{{/* 行说明：配置 command 字段，形成 statefulset.yaml 所需资源。 */}}
-          args:{{/* 行说明：配置 args 字段，形成 statefulset.yaml 所需资源。 */}}
-            - |{{/* 行说明：开始定义初始化容器执行的多行 Shell 脚本。 */}}
-              [[ "${POD_NAME}" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || {{/* 行说明：校验 Pod 名符合安全的 Kubernetes DNS 标签格式。 */}}{
-                echo "invalid POD_NAME" >&2{{/* 行说明：Pod 名不合法时向标准错误输出原因。 */}}
-                exit 1{{/* 行说明：Pod 名校验失败时立即终止初始化。 */}}
-              }{{/* 行说明：结束当前 Shell 控制块或函数定义。 */}}
-              node_dir="/mnt/es-data/${POD_NAME}"{{/* 行说明：按 Pod 名计算当前节点独占的数据子目录。 */}}
-              [[ ! -L "${node_dir}" ]] || {{/* 行说明：拒绝使用符号链接作为节点数据目录。 */}}{
-                echo "refusing symlinked data directory" >&2{{/* 行说明：检测到符号链接时向标准错误输出原因。 */}}
-                exit 1{{/* 行说明：数据目录为符号链接时立即终止初始化。 */}}
-              }{{/* 行说明：结束当前 Shell 控制块或函数定义。 */}}
-              mkdir -p -- "${node_dir}"{{/* 行说明：在共享数据根目录下创建当前 Pod 的独占子目录。 */}}
-              [[ -d "${node_dir}" && -w "${node_dir}" ]] || {{/* 行说明：确认节点数据路径是可写目录。 */}}{
-                echo "POD_NAME data directory is not writable" >&2{{/* 行说明：数据目录不可写时向标准错误输出原因。 */}}
-                exit 1{{/* 行说明：数据目录不可写时立即终止初始化。 */}}
-              }{{/* 行说明：结束当前 Shell 控制块或函数定义。 */}}
+        {{/* 行说明：配置 podAntiAffinity 字段，形成 statefulset.yaml 所需资源。 */ -}}
+        podAntiAffinity:
+          {{/* 行说明：配置 requiredDuringSchedulingIgnoredDuringExecution 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          requiredDuringSchedulingIgnoredDuringExecution:
+            {{/* 行说明：配置 labelSelector 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            - labelSelector:
+                {{/* 行说明：定义必须全部匹配的 Kubernetes 标签集合。 */ -}}
+                matchLabels:
+                  {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+                  {{- include "uino-elasticsearch.selectorLabels" . | nindent 18 }}
+              {{/* 行说明：配置 topologyKey 字段，形成 statefulset.yaml 所需资源。 */ -}}
+              topologyKey: kubernetes.io/hostname
+      {{/* 行说明：配置 initContainers 字段，形成 statefulset.yaml 所需资源。 */ -}}
+      initContainers:
+        {{/* 行说明：命名负责准备节点数据目录和运行时配置的初始化容器。 */ -}}
+        - name: prepare
+          {{/* 行说明：集中配置离线私有仓库中的 Elasticsearch 镜像。 */ -}}
+          image: {{ include "uino-elasticsearch.image" . | quote }}
+          {{/* 行说明：配置 imagePullPolicy 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{/* 行说明：配置 securityContext 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          securityContext:
+            {{/* 行说明：配置 runAsNonRoot 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            runAsNonRoot: true
+            {{/* 行说明：配置 runAsUser 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            runAsUser: 1000
+            {{/* 行说明：配置 runAsGroup 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            runAsGroup: 1000
+          {{/* 行说明：配置 command 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          command: ["/bin/bash", "-ec"]
+          {{/* 行说明：配置 args 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          args:
+            {{/* 行说明：开始定义初始化容器执行的多行 Shell 脚本。 */ -}}
+            - |
+              {{/* 行说明：校验 Pod 名符合安全的 Kubernetes DNS 标签格式。 */ -}}
+              [[ "${POD_NAME}" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || {
+                {{/* 行说明：Pod 名不合法时向标准错误输出原因。 */ -}}
+                echo "invalid POD_NAME" >&2
+                {{/* 行说明：Pod 名校验失败时立即终止初始化。 */ -}}
+                exit 1
+              {{/* 行说明：结束当前 Shell 控制块或函数定义。 */ -}}
+              }
+              {{/* 行说明：按 Pod 名计算当前节点独占的数据子目录。 */ -}}
+              node_dir="/mnt/es-data/${POD_NAME}"
+              {{/* 行说明：拒绝使用符号链接作为节点数据目录。 */ -}}
+              [[ ! -L "${node_dir}" ]] || {
+                {{/* 行说明：检测到符号链接时向标准错误输出原因。 */ -}}
+                echo "refusing symlinked data directory" >&2
+                {{/* 行说明：数据目录为符号链接时立即终止初始化。 */ -}}
+                exit 1
+              {{/* 行说明：结束当前 Shell 控制块或函数定义。 */ -}}
+              }
+              {{/* 行说明：在共享数据根目录下创建当前 Pod 的独占子目录。 */ -}}
+              mkdir -p -- "${node_dir}"
+              {{/* 行说明：确认节点数据路径是可写目录。 */ -}}
+              [[ -d "${node_dir}" && -w "${node_dir}" ]] || {
+                {{/* 行说明：数据目录不可写时向标准错误输出原因。 */ -}}
+                echo "POD_NAME data directory is not writable" >&2
+                {{/* 行说明：数据目录不可写时立即终止初始化。 */ -}}
+                exit 1
+              {{/* 行说明：结束当前 Shell 控制块或函数定义。 */ -}}
+              }
 
-              cp -R /usr/share/elasticsearch/config/. /config-runtime/{{/* 行说明：复制镜像内默认配置到当前 Pod 的可写运行时目录。 */}}
-              cp /config-source/elasticsearch.yml /config-runtime/elasticsearch.yml{{/* 行说明：用 ConfigMap 中的受控配置覆盖默认 elasticsearch.yml。 */}}
-              if ! compgen -G "${node_dir}/nodes/0/_state/global-*.st" >/dev/null && {{/* 行说明：检查数据目录中不存在旧版全局集群状态文件。 */}}\
-                 ! compgen -G "${node_dir}/nodes/0/_state/manifest-*.st" >/dev/null; then{{/* 行说明：同时确认不存在新版 manifest 集群状态文件。 */}}
-                printf '\ncluster.initial_master_nodes: ["%s-0", "%s-1", "%s-2"]\n' {{/* 行说明：按固定格式构造配置内容或 JSON 请求体。 */}}\
-                  "${STATEFULSET_NAME}" "${STATEFULSET_NAME}" "${STATEFULSET_NAME}" {{/* 行说明：用 StatefulSet 名生成三个固定的首次选主节点名。 */}}\
-                  >> /config-runtime/elasticsearch.yml{{/* 行说明：仅为全新数据目录追加首次集群引导配置。 */}}
-              fi{{/* 行说明：结束当前 Shell 控制块或函数定义。 */}}
-          env:{{/* 行说明：配置 env 字段，形成 statefulset.yaml 所需资源。 */}}
-            - name: POD_NAME{{/* 行说明：声明初始化脚本使用的当前 Pod 名环境变量。 */}}
-              valueFrom:{{/* 行说明：配置 valueFrom 字段，形成 statefulset.yaml 所需资源。 */}}
-                fieldRef:{{/* 行说明：配置 fieldRef 字段，形成 statefulset.yaml 所需资源。 */}}
-                  fieldPath: metadata.name{{/* 行说明：配置 fieldPath 字段，形成 statefulset.yaml 所需资源。 */}}
-            - name: STATEFULSET_NAME{{/* 行说明：声明首次选主节点名使用的 StatefulSet 名环境变量。 */}}
-              value: {{ include "uino-elasticsearch.fullname" . }}{{/* 行说明：传入当前 release 生成的 StatefulSet 全名。 */}}
-          volumeMounts:{{/* 行说明：配置 volumeMounts 字段，形成 statefulset.yaml 所需资源。 */}}
-            - name: data{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-              mountPath: /mnt/es-data{{/* 行说明：将 Worker 共享数据根目录挂载给初始化容器。 */}}
-            - name: config-source{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-              mountPath: /config-source{{/* 行说明：将 ConfigMap 中的原始 Elasticsearch 配置挂载为只读源。 */}}
-              readOnly: true{{/* 行说明：配置 readOnly 字段，形成 statefulset.yaml 所需资源。 */}}
-            - name: config-runtime{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-              mountPath: /config-runtime{{/* 行说明：挂载初始化容器写入运行时配置的临时目录。 */}}
-      containers:{{/* 行说明：配置 containers 字段，形成 statefulset.yaml 所需资源。 */}}
-        - name: elasticsearch{{/* 行说明：命名运行 Elasticsearch 7.10.2 的主业务容器。 */}}
-          image: {{ include "uino-elasticsearch.image" . | quote }}{{/* 行说明：集中配置离线私有仓库中的 Elasticsearch 镜像。 */}}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}{{/* 行说明：配置 imagePullPolicy 字段，形成 statefulset.yaml 所需资源。 */}}
-          ports:{{/* 行说明：配置 ports 字段，形成 statefulset.yaml 所需资源。 */}}
-            - name: http{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-              containerPort: 9200{{/* 行说明：声明 Elasticsearch HTTPS API 容器端口 9200。 */}}
-            - name: transport{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-              containerPort: 9300{{/* 行说明：声明 Elasticsearch 节点 transport 容器端口 9300。 */}}
-          env:{{/* 行说明：配置 env 字段，形成 statefulset.yaml 所需资源。 */}}
-            - name: POD_NAME{{/* 行说明：声明 subPathExpr 使用的当前 Pod 名环境变量。 */}}
-              valueFrom:{{/* 行说明：配置 valueFrom 字段，形成 statefulset.yaml 所需资源。 */}}
-                fieldRef:{{/* 行说明：配置 fieldRef 字段，形成 statefulset.yaml 所需资源。 */}}
-                  fieldPath: metadata.name{{/* 行说明：配置 fieldPath 字段，形成 statefulset.yaml 所需资源。 */}}
-            - name: node.name{{/* 行说明：声明 Elasticsearch 节点名称环境变量。 */}}
-              valueFrom:{{/* 行说明：配置 valueFrom 字段，形成 statefulset.yaml 所需资源。 */}}
-                fieldRef:{{/* 行说明：配置 fieldRef 字段，形成 statefulset.yaml 所需资源。 */}}
-                  fieldPath: metadata.name{{/* 行说明：配置 fieldPath 字段，形成 statefulset.yaml 所需资源。 */}}
-            - name: node.roles{{/* 行说明：声明 Elasticsearch 节点角色环境变量。 */}}
-              value: master,data,ingest{{/* 行说明：让三个节点同时承担选主、数据和 ingest 角色。 */}}
-            - name: discovery.seed_hosts{{/* 行说明：声明 Elasticsearch 节点发现种子地址环境变量。 */}}
-              value: {{ include "uino-elasticsearch.headlessServiceName" . }}{{/* 行说明：通过无头 Service DNS 发现其他 Elasticsearch 节点。 */}}
-            - name: ES_JAVA_OPTS{{/* 行说明：声明 Elasticsearch JVM 参数环境变量。 */}}
-              value: {{ .Values.heap | quote }}{{/* 行说明：传入校验后的 JVM 初始堆和最大堆参数。 */}}
-            - name: xpack.security.enabled{{/* 行说明：声明 Elasticsearch 安全功能开关环境变量。 */}}
-              value: "true"{{/* 行说明：启用 Elasticsearch 用户认证和授权。 */}}
-            - name: xpack.security.transport.ssl.enabled{{/* 行说明：声明节点 transport TLS 开关环境变量。 */}}
-              value: "true"{{/* 行说明：启用节点 transport 通信 TLS。 */}}
-            - name: xpack.security.http.ssl.enabled{{/* 行说明：声明 HTTP 接口 TLS 开关环境变量。 */}}
-              value: "true"{{/* 行说明：启用 Elasticsearch HTTP 接口 TLS。 */}}
-            - name: ELASTIC_PASSWORD{{/* 行说明：声明 elastic 管理员密码环境变量。 */}}
-              valueFrom:{{/* 行说明：配置 valueFrom 字段，形成 statefulset.yaml 所需资源。 */}}
-                secretKeyRef:{{/* 行说明：配置 secretKeyRef 字段，形成 statefulset.yaml 所需资源。 */}}
-                  name: {{ include "uino-elasticsearch.credentialsSecretName" . }}{{/* 行说明：引用 Chart 管理或客户预置的管理员凭据 Secret。 */}}
-                  key: elastic-password{{/* 行说明：配置 key 字段，形成 statefulset.yaml 所需资源。 */}}
-          resources:{{/* 行说明：设置 Elasticsearch 容器的 CPU 和内存资源边界。 */}}
-            {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- toYaml .Values.resources | nindent 12 }}
-          volumeMounts:{{/* 行说明：配置 volumeMounts 字段，形成 statefulset.yaml 所需资源。 */}}
-            - name: data{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-              mountPath: /usr/share/elasticsearch/data{{/* 行说明：挂载当前 Pod 独占的 Elasticsearch 数据子目录。 */}}
-              subPathExpr: $(POD_NAME){{/* 行说明：配置 subPathExpr 字段，形成 statefulset.yaml 所需资源。 */}}
-            - name: config-runtime{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-              mountPath: /usr/share/elasticsearch/config{{/* 行说明：挂载初始化完成的 Elasticsearch 运行时配置目录。 */}}
-            - name: tls{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-              mountPath: /usr/share/elasticsearch/config/certs{{/* 行说明：挂载节点 HTTP 与 transport TLS 证书目录。 */}}
-              readOnly: true{{/* 行说明：配置 readOnly 字段，形成 statefulset.yaml 所需资源。 */}}
-            {{- /* 行说明：仅在该 Helm 条件成立时渲染后续内容。 */}}{{- if .Values.snapshot.enabled }}
-            - name: snapshots{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-              mountPath: {{ .Values.snapshot.mountPath }}{{/* 行说明：将 NFS 快照共享目录挂载到 Elasticsearch 仓库白名单路径。 */}}
-              readOnly: false{{/* 行说明：配置 readOnly 字段，形成 statefulset.yaml 所需资源。 */}}
-            {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}{{- end }}
-          startupProbe:{{/* 行说明：配置 startupProbe 字段，形成 statefulset.yaml 所需资源。 */}}
-            exec:{{/* 行说明：配置 exec 字段，形成 statefulset.yaml 所需资源。 */}}
-              command:{{/* 行说明：配置 command 字段，形成 statefulset.yaml 所需资源。 */}}
-                - /bin/bash{{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */}}
-                - -ec{{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */}}
-                - curl --silent --show-error --fail --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:${ELASTIC_PASSWORD}" https://127.0.0.1:9200/{{/* 行说明：启动探针通过本机 HTTPS 根接口确认进程已可响应。 */}}
-            periodSeconds: 10{{/* 行说明：配置 periodSeconds 字段，形成 statefulset.yaml 所需资源。 */}}
-            timeoutSeconds: 5{{/* 行说明：配置 timeoutSeconds 字段，形成 statefulset.yaml 所需资源。 */}}
-            failureThreshold: 60{{/* 行说明：配置 failureThreshold 字段，形成 statefulset.yaml 所需资源。 */}}
-          readinessProbe:{{/* 行说明：配置 readinessProbe 字段，形成 statefulset.yaml 所需资源。 */}}
-            exec:{{/* 行说明：配置 exec 字段，形成 statefulset.yaml 所需资源。 */}}
-              command:{{/* 行说明：配置 command 字段，形成 statefulset.yaml 所需资源。 */}}
-                - /bin/bash{{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */}}
-                - -ec{{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */}}
-                - curl --silent --show-error --fail --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=1s"{{/* 行说明：就绪探针等待集群达到 yellow，避免未就绪节点接收流量。 */}}
-            periodSeconds: 10{{/* 行说明：配置 periodSeconds 字段，形成 statefulset.yaml 所需资源。 */}}
-            timeoutSeconds: 8{{/* 行说明：配置 timeoutSeconds 字段，形成 statefulset.yaml 所需资源。 */}}
-            failureThreshold: 6{{/* 行说明：配置 failureThreshold 字段，形成 statefulset.yaml 所需资源。 */}}
-          livenessProbe:{{/* 行说明：配置 livenessProbe 字段，形成 statefulset.yaml 所需资源。 */}}
-            exec:{{/* 行说明：配置 exec 字段，形成 statefulset.yaml 所需资源。 */}}
-              command:{{/* 行说明：配置 command 字段，形成 statefulset.yaml 所需资源。 */}}
-                - /bin/bash{{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */}}
-                - -ec{{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */}}
-                - curl --silent --show-error --fail --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:${ELASTIC_PASSWORD}" https://127.0.0.1:9200/{{/* 行说明：存活探针通过本机 HTTPS 根接口检测进程是否健康。 */}}
-            initialDelaySeconds: 30{{/* 行说明：配置 initialDelaySeconds 字段，形成 statefulset.yaml 所需资源。 */}}
-            periodSeconds: 20{{/* 行说明：配置 periodSeconds 字段，形成 statefulset.yaml 所需资源。 */}}
-            timeoutSeconds: 8{{/* 行说明：配置 timeoutSeconds 字段，形成 statefulset.yaml 所需资源。 */}}
-            failureThreshold: 3{{/* 行说明：配置 failureThreshold 字段，形成 statefulset.yaml 所需资源。 */}}
-      volumes:{{/* 行说明：配置 volumes 字段，形成 statefulset.yaml 所需资源。 */}}
+              {{/* 行说明：复制镜像内默认配置到当前 Pod 的可写运行时目录。 */ -}}
+              cp -R /usr/share/elasticsearch/config/. /config-runtime/
+              {{/* 行说明：用 ConfigMap 中的受控配置覆盖默认 elasticsearch.yml。 */ -}}
+              cp /config-source/elasticsearch.yml /config-runtime/elasticsearch.yml
+              {{/* 行说明：检查数据目录中不存在旧版全局集群状态文件。 */ -}}
+              if ! compgen -G "${node_dir}/nodes/0/_state/global-*.st" >/dev/null && \
+                 {{/* 行说明：同时确认不存在新版 manifest 集群状态文件。 */ -}}
+                 ! compgen -G "${node_dir}/nodes/0/_state/manifest-*.st" >/dev/null; then
+                {{/* 行说明：按固定格式构造配置内容或 JSON 请求体。 */ -}}
+                printf '\ncluster.initial_master_nodes: ["%s-0", "%s-1", "%s-2"]\n' \
+                  {{/* 行说明：用 StatefulSet 名生成三个固定的首次选主节点名。 */ -}}
+                  "${STATEFULSET_NAME}" "${STATEFULSET_NAME}" "${STATEFULSET_NAME}" \
+                  {{/* 行说明：仅为全新数据目录追加首次集群引导配置。 */ -}}
+                  >> /config-runtime/elasticsearch.yml
+              {{/* 行说明：结束当前 Shell 控制块或函数定义。 */ -}}
+              fi
+          {{/* 行说明：配置 env 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          env:
+            {{/* 行说明：声明初始化脚本使用的当前 Pod 名环境变量。 */ -}}
+            - name: POD_NAME
+              {{/* 行说明：配置 valueFrom 字段，形成 statefulset.yaml 所需资源。 */ -}}
+              valueFrom:
+                {{/* 行说明：配置 fieldRef 字段，形成 statefulset.yaml 所需资源。 */ -}}
+                fieldRef:
+                  {{/* 行说明：配置 fieldPath 字段，形成 statefulset.yaml 所需资源。 */ -}}
+                  fieldPath: metadata.name
+            {{/* 行说明：声明首次选主节点名使用的 StatefulSet 名环境变量。 */ -}}
+            - name: STATEFULSET_NAME
+              {{/* 行说明：传入当前 release 生成的 StatefulSet 全名。 */ -}}
+              value: {{ include "uino-elasticsearch.fullname" . }}
+          {{/* 行说明：配置 volumeMounts 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          volumeMounts:
+            {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+            - name: data
+              {{/* 行说明：将 Worker 共享数据根目录挂载给初始化容器。 */ -}}
+              mountPath: /mnt/es-data
+            {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+            - name: config-source
+              {{/* 行说明：将 ConfigMap 中的原始 Elasticsearch 配置挂载为只读源。 */ -}}
+              mountPath: /config-source
+              {{/* 行说明：配置 readOnly 字段，形成 statefulset.yaml 所需资源。 */ -}}
+              readOnly: true
+            {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+            - name: config-runtime
+              {{/* 行说明：挂载初始化容器写入运行时配置的临时目录。 */ -}}
+              mountPath: /config-runtime
+      {{/* 行说明：配置 containers 字段，形成 statefulset.yaml 所需资源。 */ -}}
+      containers:
+        {{/* 行说明：命名运行 Elasticsearch 7.10.2 的主业务容器。 */ -}}
+        - name: elasticsearch
+          {{/* 行说明：集中配置离线私有仓库中的 Elasticsearch 镜像。 */ -}}
+          image: {{ include "uino-elasticsearch.image" . | quote }}
+          {{/* 行说明：配置 imagePullPolicy 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{/* 行说明：配置 ports 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          ports:
+            {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+            - name: http
+              {{/* 行说明：声明 Elasticsearch HTTPS API 容器端口 9200。 */ -}}
+              containerPort: 9200
+            {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+            - name: transport
+              {{/* 行说明：声明 Elasticsearch 节点 transport 容器端口 9300。 */ -}}
+              containerPort: 9300
+          {{/* 行说明：配置 env 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          env:
+            {{/* 行说明：声明 subPathExpr 使用的当前 Pod 名环境变量。 */ -}}
+            - name: POD_NAME
+              {{/* 行说明：配置 valueFrom 字段，形成 statefulset.yaml 所需资源。 */ -}}
+              valueFrom:
+                {{/* 行说明：配置 fieldRef 字段，形成 statefulset.yaml 所需资源。 */ -}}
+                fieldRef:
+                  {{/* 行说明：配置 fieldPath 字段，形成 statefulset.yaml 所需资源。 */ -}}
+                  fieldPath: metadata.name
+            {{/* 行说明：声明 Elasticsearch 节点名称环境变量。 */ -}}
+            - name: node.name
+              {{/* 行说明：配置 valueFrom 字段，形成 statefulset.yaml 所需资源。 */ -}}
+              valueFrom:
+                {{/* 行说明：配置 fieldRef 字段，形成 statefulset.yaml 所需资源。 */ -}}
+                fieldRef:
+                  {{/* 行说明：配置 fieldPath 字段，形成 statefulset.yaml 所需资源。 */ -}}
+                  fieldPath: metadata.name
+            {{/* 行说明：声明 Elasticsearch 节点角色环境变量。 */ -}}
+            - name: node.roles
+              {{/* 行说明：让三个节点同时承担选主、数据和 ingest 角色。 */ -}}
+              value: master,data,ingest
+            {{/* 行说明：声明 Elasticsearch 节点发现种子地址环境变量。 */ -}}
+            - name: discovery.seed_hosts
+              {{/* 行说明：通过无头 Service DNS 发现其他 Elasticsearch 节点。 */ -}}
+              value: {{ include "uino-elasticsearch.headlessServiceName" . }}
+            {{/* 行说明：声明 Elasticsearch JVM 参数环境变量。 */ -}}
+            - name: ES_JAVA_OPTS
+              {{/* 行说明：传入校验后的 JVM 初始堆和最大堆参数。 */ -}}
+              value: {{ .Values.heap | quote }}
+            {{/* 行说明：声明 Elasticsearch 安全功能开关环境变量。 */ -}}
+            - name: xpack.security.enabled
+              {{/* 行说明：启用 Elasticsearch 用户认证和授权。 */ -}}
+              value: "true"
+            {{/* 行说明：声明节点 transport TLS 开关环境变量。 */ -}}
+            - name: xpack.security.transport.ssl.enabled
+              {{/* 行说明：启用节点 transport 通信 TLS。 */ -}}
+              value: "true"
+            {{/* 行说明：声明 HTTP 接口 TLS 开关环境变量。 */ -}}
+            - name: xpack.security.http.ssl.enabled
+              {{/* 行说明：启用 Elasticsearch HTTP 接口 TLS。 */ -}}
+              value: "true"
+            {{/* 行说明：声明 elastic 管理员密码环境变量。 */ -}}
+            - name: ELASTIC_PASSWORD
+              {{/* 行说明：配置 valueFrom 字段，形成 statefulset.yaml 所需资源。 */ -}}
+              valueFrom:
+                {{/* 行说明：配置 secretKeyRef 字段，形成 statefulset.yaml 所需资源。 */ -}}
+                secretKeyRef:
+                  {{/* 行说明：引用 Chart 管理或客户预置的管理员凭据 Secret。 */ -}}
+                  name: {{ include "uino-elasticsearch.credentialsSecretName" . }}
+                  {{/* 行说明：配置 key 字段，形成 statefulset.yaml 所需资源。 */ -}}
+                  key: elastic-password
+          {{/* 行说明：设置 Elasticsearch 容器的 CPU 和内存资源边界。 */ -}}
+          resources:
+            {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{/* 行说明：配置 volumeMounts 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          volumeMounts:
+            {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+            - name: data
+              {{/* 行说明：挂载当前 Pod 独占的 Elasticsearch 数据子目录。 */ -}}
+              mountPath: /usr/share/elasticsearch/data
+              {{/* 行说明：配置 subPathExpr 字段，形成 statefulset.yaml 所需资源。 */ -}}
+              subPathExpr: $(POD_NAME)
+            {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+            - name: config-runtime
+              {{/* 行说明：挂载初始化完成的 Elasticsearch 运行时配置目录。 */ -}}
+              mountPath: /usr/share/elasticsearch/config
+            {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+            - name: tls
+              {{/* 行说明：挂载节点 HTTP 与 transport TLS 证书目录。 */ -}}
+              mountPath: /usr/share/elasticsearch/config/certs
+              {{/* 行说明：配置 readOnly 字段，形成 statefulset.yaml 所需资源。 */ -}}
+              readOnly: true
+            {{- /* 行说明：仅在该 Helm 条件成立时渲染后续内容。 */}}
+            {{- if .Values.snapshot.enabled }}
+            {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+            - name: snapshots
+              {{/* 行说明：将 NFS 快照共享目录挂载到 Elasticsearch 仓库白名单路径。 */ -}}
+              mountPath: {{ .Values.snapshot.mountPath }}
+              {{/* 行说明：配置 readOnly 字段，形成 statefulset.yaml 所需资源。 */ -}}
+              readOnly: false
+            {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}
+            {{- end }}
+          {{/* 行说明：配置 startupProbe 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          startupProbe:
+            {{/* 行说明：配置 exec 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            exec:
+              {{/* 行说明：配置 command 字段，形成 statefulset.yaml 所需资源。 */ -}}
+              command:
+                {{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */ -}}
+                - /bin/bash
+                {{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */ -}}
+                - -ec
+                {{/* 行说明：启动探针通过本机 HTTPS 根接口确认进程已可响应。 */ -}}
+                - curl --silent --show-error --fail --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:${ELASTIC_PASSWORD}" https://127.0.0.1:9200/
+            {{/* 行说明：配置 periodSeconds 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            periodSeconds: 10
+            {{/* 行说明：配置 timeoutSeconds 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            timeoutSeconds: 5
+            {{/* 行说明：配置 failureThreshold 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            failureThreshold: 60
+          {{/* 行说明：配置 readinessProbe 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          readinessProbe:
+            {{/* 行说明：配置 exec 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            exec:
+              {{/* 行说明：配置 command 字段，形成 statefulset.yaml 所需资源。 */ -}}
+              command:
+                {{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */ -}}
+                - /bin/bash
+                {{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */ -}}
+                - -ec
+                {{/* 行说明：就绪探针等待集群达到 yellow，避免未就绪节点接收流量。 */ -}}
+                - curl --silent --show-error --fail --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=1s"
+            {{/* 行说明：配置 periodSeconds 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            periodSeconds: 10
+            {{/* 行说明：配置 timeoutSeconds 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            timeoutSeconds: 8
+            {{/* 行说明：配置 failureThreshold 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            failureThreshold: 6
+          {{/* 行说明：配置 livenessProbe 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          livenessProbe:
+            {{/* 行说明：配置 exec 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            exec:
+              {{/* 行说明：配置 command 字段，形成 statefulset.yaml 所需资源。 */ -}}
+              command:
+                {{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */ -}}
+                - /bin/bash
+                {{/* 行说明：向当前 Kubernetes 列表追加一个配置项。 */ -}}
+                - -ec
+                {{/* 行说明：存活探针通过本机 HTTPS 根接口检测进程是否健康。 */ -}}
+                - curl --silent --show-error --fail --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:${ELASTIC_PASSWORD}" https://127.0.0.1:9200/
+            {{/* 行说明：配置 initialDelaySeconds 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            initialDelaySeconds: 30
+            {{/* 行说明：配置 periodSeconds 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            periodSeconds: 20
+            {{/* 行说明：配置 timeoutSeconds 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            timeoutSeconds: 8
+            {{/* 行说明：配置 failureThreshold 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            failureThreshold: 3
+      {{/* 行说明：配置 volumes 字段，形成 statefulset.yaml 所需资源。 */ -}}
+      volumes:
         # 客户保证该目录由所有 Worker 共享挂载；subPathExpr 再按 Pod 隔离数据。
-        - name: data{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-          hostPath:{{/* 行说明：配置 hostPath 字段，形成 statefulset.yaml 所需资源。 */}}
-            path: /data/uinnova/apps/es{{/* 行说明：使用所有 Worker 已共享挂载的 Elasticsearch 数据目录。 */}}
-            type: Directory{{/* 行说明：要求该 Worker hostPath 目录在 Pod 启动前已经存在。 */}}
-        - name: config-source{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-          configMap:{{/* 行说明：配置 configMap 字段，形成 statefulset.yaml 所需资源。 */}}
-            name: {{ include "uino-elasticsearch.fullname" . }}-config{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-        - name: config-runtime{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-          emptyDir: {}{{/* 行说明：配置 emptyDir 字段，形成 statefulset.yaml 所需资源。 */}}
-        - name: tls{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-          secret:{{/* 行说明：配置 secret 字段，形成 statefulset.yaml 所需资源。 */}}
-            secretName: {{ include "uino-elasticsearch.tlsSecretName" . }}{{/* 行说明：配置 secretName 字段，形成 statefulset.yaml 所需资源。 */}}
-            defaultMode: 0440{{/* 行说明：配置 defaultMode 字段，形成 statefulset.yaml 所需资源。 */}}
-        {{- /* 行说明：仅在该 Helm 条件成立时渲染后续内容。 */}}{{- if .Values.snapshot.enabled }}
-        - name: snapshots{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-          nfs:{{/* 行说明：指定所有 Worker 共同访问的 NFS export。 */}}
-            server: {{ .Values.snapshot.nfs.server | quote }}{{/* 行说明：设置 NFS 服务端地址，必须可从每个 Worker 访问。 */}}
-            path: {{ .Values.snapshot.nfs.path | quote }}{{/* 行说明：设置 NFS export 的绝对路径。 */}}
-            readOnly: false{{/* 行说明：配置 readOnly 字段，形成 statefulset.yaml 所需资源。 */}}
-        {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}{{- end }}
+        {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+        - name: data
+          {{/* 行说明：配置 hostPath 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          hostPath:
+            {{/* 行说明：使用所有 Worker 已共享挂载的 Elasticsearch 数据目录。 */ -}}
+            path: /data/uinnova/apps/es
+            {{/* 行说明：要求该 Worker hostPath 目录在 Pod 启动前已经存在。 */ -}}
+            type: Directory
+        {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+        - name: config-source
+          {{/* 行说明：配置 configMap 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          configMap:
+            {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+            name: {{ include "uino-elasticsearch.fullname" . }}-config
+        {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+        - name: config-runtime
+          {{/* 行说明：配置 emptyDir 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          emptyDir: {}
+        {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+        - name: tls
+          {{/* 行说明：配置 secret 字段，形成 statefulset.yaml 所需资源。 */ -}}
+          secret:
+            {{/* 行说明：配置 secretName 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            secretName: {{ include "uino-elasticsearch.tlsSecretName" . }}
+            {{/* 行说明：配置 defaultMode 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            defaultMode: 0440
+        {{- /* 行说明：仅在该 Helm 条件成立时渲染后续内容。 */}}
+        {{- if .Values.snapshot.enabled }}
+        {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+        - name: snapshots
+          {{/* 行说明：指定所有 Worker 共同访问的 NFS export。 */ -}}
+          nfs:
+            {{/* 行说明：设置 NFS 服务端地址，必须可从每个 Worker 访问。 */ -}}
+            server: {{ .Values.snapshot.nfs.server | quote }}
+            {{/* 行说明：设置 NFS export 的绝对路径。 */ -}}
+            path: {{ .Values.snapshot.nfs.path | quote }}
+            {{/* 行说明：配置 readOnly 字段，形成 statefulset.yaml 所需资源。 */ -}}
+            readOnly: false
+        {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}
+        {{- end }}

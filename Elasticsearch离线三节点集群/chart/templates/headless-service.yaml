@@ -1,20 +1,38 @@
 {{- /* 文件说明：创建 StatefulSet 节点发现和 9300 transport 通信使用的无头 Service。 */ -}}
-apiVersion: v1{{/* 行说明：指定 Kubernetes 或 Helm 使用的 API 版本。 */}}
-kind: Service{{/* 行说明：声明当前清单创建的 Kubernetes 资源类型。 */}}
-metadata:{{/* 行说明：配置 metadata 字段，形成 headless-service.yaml 所需资源。 */}}
-  name: {{ include "uino-elasticsearch.headlessServiceName" . }}{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-  labels:{{/* 行说明：配置 labels 字段，形成 headless-service.yaml 所需资源。 */}}
-    {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- include "uino-elasticsearch.labels" . | nindent 4 }}
-spec:{{/* 行说明：配置 spec 字段，形成 headless-service.yaml 所需资源。 */}}
-  clusterIP: None{{/* 行说明：配置 clusterIP 字段，形成 headless-service.yaml 所需资源。 */}}
+{{/* 行说明：指定 Kubernetes 或 Helm 使用的 API 版本。 */ -}}
+apiVersion: v1
+{{/* 行说明：声明当前清单创建的 Kubernetes 资源类型。 */ -}}
+kind: Service
+{{/* 行说明：配置 metadata 字段，形成 headless-service.yaml 所需资源。 */ -}}
+metadata:
+  {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+  name: {{ include "uino-elasticsearch.headlessServiceName" . }}
+  {{/* 行说明：配置 labels 字段，形成 headless-service.yaml 所需资源。 */ -}}
+  labels:
+    {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+    {{- include "uino-elasticsearch.labels" . | nindent 4 }}
+{{/* 行说明：配置 spec 字段，形成 headless-service.yaml 所需资源。 */ -}}
+spec:
+  {{/* 行说明：配置 clusterIP 字段，形成 headless-service.yaml 所需资源。 */ -}}
+  clusterIP: None
   # 首次选主前 Pod 尚未 Ready，仍需提前发布 DNS 才能互相发现。
-  publishNotReadyAddresses: true{{/* 行说明：配置 publishNotReadyAddresses 字段，形成 headless-service.yaml 所需资源。 */}}
-  selector:{{/* 行说明：配置 selector 字段，形成 headless-service.yaml 所需资源。 */}}
-    {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- include "uino-elasticsearch.selectorLabels" . | nindent 4 }}
-  ports:{{/* 行说明：配置 ports 字段，形成 headless-service.yaml 所需资源。 */}}
-    - name: http{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-      port: 9200{{/* 行说明：指定 Elasticsearch HTTP 服务端口 9200。 */}}
-      targetPort: http{{/* 行说明：配置 targetPort 字段，形成 headless-service.yaml 所需资源。 */}}
-    - name: transport{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-      port: 9300{{/* 行说明：指定 Elasticsearch 节点间 transport 通信端口 9300。 */}}
-      targetPort: transport{{/* 行说明：配置 targetPort 字段，形成 headless-service.yaml 所需资源。 */}}
+  {{/* 行说明：配置 publishNotReadyAddresses 字段，形成 headless-service.yaml 所需资源。 */ -}}
+  publishNotReadyAddresses: true
+  {{/* 行说明：配置 selector 字段，形成 headless-service.yaml 所需资源。 */ -}}
+  selector:
+    {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+    {{- include "uino-elasticsearch.selectorLabels" . | nindent 4 }}
+  {{/* 行说明：配置 ports 字段，形成 headless-service.yaml 所需资源。 */ -}}
+  ports:
+    {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+    - name: http
+      {{/* 行说明：指定 Elasticsearch HTTP 服务端口 9200。 */ -}}
+      port: 9200
+      {{/* 行说明：配置 targetPort 字段，形成 headless-service.yaml 所需资源。 */ -}}
+      targetPort: http
+    {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+    - name: transport
+      {{/* 行说明：指定 Elasticsearch 节点间 transport 通信端口 9300。 */ -}}
+      port: 9300
+      {{/* 行说明：配置 targetPort 字段，形成 headless-service.yaml 所需资源。 */ -}}
+      targetPort: transport

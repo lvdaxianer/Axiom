@@ -1,157 +1,294 @@
 {{- /* 文件说明：在安装或升级后注册并验证 NFS 快照仓库，并按需配置 SLM 定时策略。 */ -}}
 {{/* 快照开启后才创建 Hook，关闭时不保留注册任务或对应运行面。 */}}
-{{- /* 行说明：仅在该 Helm 条件成立时渲染后续内容。 */}}{{- if .Values.snapshot.enabled }}
+{{- /* 行说明：仅在该 Helm 条件成立时渲染后续内容。 */}}
+{{- if .Values.snapshot.enabled }}
 {{/* 保留策略计数错误必须在提交任何 Elasticsearch API 请求前失败。 */}}
-{{- /* 行说明：仅在该 Helm 条件成立时渲染后续内容。 */}}{{- if gt (int .Values.snapshot.slm.retention.minCount) (int .Values.snapshot.slm.retention.maxCount) -}}
-{{- /* 行说明：配置违反安全约束时立即终止 Helm 渲染。 */}}{{- fail "snapshot.slm.retention.minCount must not exceed maxCount" -}}
-{{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}{{- end }}
-apiVersion: batch/v1{{/* 行说明：指定 Kubernetes 或 Helm 使用的 API 版本。 */}}
-kind: Job{{/* 行说明：声明当前清单创建的 Kubernetes 资源类型。 */}}
-metadata:{{/* 行说明：配置 metadata 字段，形成 snapshot-job.yaml 所需资源。 */}}
-  name: {{ include "uino-elasticsearch.fullname" . }}-snapshot{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-  namespace: {{ .Release.Namespace }}{{/* 行说明：配置 namespace 字段，形成 snapshot-job.yaml 所需资源。 */}}
-  labels:{{/* 行说明：配置 labels 字段，形成 snapshot-job.yaml 所需资源。 */}}
-    app.kubernetes.io/name: elasticsearch-client{{/* 行说明：配置 app.kubernetes.io/name 字段，形成 snapshot-job.yaml 所需资源。 */}}
-    app.kubernetes.io/instance: {{ .Release.Name }}{{/* 行说明：配置 app.kubernetes.io/instance 字段，形成 snapshot-job.yaml 所需资源。 */}}
-    app.kubernetes.io/component: snapshot{{/* 行说明：配置 app.kubernetes.io/component 字段，形成 snapshot-job.yaml 所需资源。 */}}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}{{/* 行说明：配置 app.kubernetes.io/managed-by 字段，形成 snapshot-job.yaml 所需资源。 */}}
-    helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}{{/* 行说明：配置 helm.sh/chart 字段，形成 snapshot-job.yaml 所需资源。 */}}
-  annotations:{{/* 行说明：配置安装后和升级后执行及清理快照 Hook 的 Helm 注解。 */}}
-    helm.sh/hook: post-install,post-upgrade{{/* 行说明：配置 helm.sh/hook 字段，形成 snapshot-job.yaml 所需资源。 */}}
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded{{/* 行说明：配置 helm.sh/hook-delete-policy 字段，形成 snapshot-job.yaml 所需资源。 */}}
-spec:{{/* 行说明：配置 spec 字段，形成 snapshot-job.yaml 所需资源。 */}}
+{{- /* 行说明：仅在该 Helm 条件成立时渲染后续内容。 */}}
+{{- if gt (int .Values.snapshot.slm.retention.minCount) (int .Values.snapshot.slm.retention.maxCount) -}}
+{{- /* 行说明：配置违反安全约束时立即终止 Helm 渲染。 */}}
+{{- fail "snapshot.slm.retention.minCount must not exceed maxCount" -}}
+{{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}
+{{- end }}
+{{/* 行说明：指定 Kubernetes 或 Helm 使用的 API 版本。 */ -}}
+apiVersion: batch/v1
+{{/* 行说明：声明当前清单创建的 Kubernetes 资源类型。 */ -}}
+kind: Job
+{{/* 行说明：配置 metadata 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+metadata:
+  {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+  name: {{ include "uino-elasticsearch.fullname" . }}-snapshot
+  {{/* 行说明：配置 namespace 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+  namespace: {{ .Release.Namespace }}
+  {{/* 行说明：配置 labels 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+  labels:
+    {{/* 行说明：配置 app.kubernetes.io/name 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+    app.kubernetes.io/name: elasticsearch-client
+    {{/* 行说明：配置 app.kubernetes.io/instance 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    {{/* 行说明：配置 app.kubernetes.io/component 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+    app.kubernetes.io/component: snapshot
+    {{/* 行说明：配置 app.kubernetes.io/managed-by 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{/* 行说明：配置 helm.sh/chart 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+    helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
+  {{/* 行说明：配置安装后和升级后执行及清理快照 Hook 的 Helm 注解。 */ -}}
+  annotations:
+    {{/* 行说明：配置 helm.sh/hook 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+    helm.sh/hook: post-install,post-upgrade
+    {{/* 行说明：配置 helm.sh/hook-delete-policy 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+{{/* 行说明：配置 spec 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+spec:
   # Job 的有限重试和总时限避免升级 Hook 无限阻塞。
-  backoffLimit: 2{{/* 行说明：配置 backoffLimit 字段，形成 snapshot-job.yaml 所需资源。 */}}
-  activeDeadlineSeconds: 600{{/* 行说明：配置 activeDeadlineSeconds 字段，形成 snapshot-job.yaml 所需资源。 */}}
-  template:{{/* 行说明：配置 template 字段，形成 snapshot-job.yaml 所需资源。 */}}
-    metadata:{{/* 行说明：配置 metadata 字段，形成 snapshot-job.yaml 所需资源。 */}}
-      labels:{{/* 行说明：配置 labels 字段，形成 snapshot-job.yaml 所需资源。 */}}
-        app.kubernetes.io/name: elasticsearch-client{{/* 行说明：配置 app.kubernetes.io/name 字段，形成 snapshot-job.yaml 所需资源。 */}}
-        app.kubernetes.io/instance: {{ .Release.Name }}{{/* 行说明：配置 app.kubernetes.io/instance 字段，形成 snapshot-job.yaml 所需资源。 */}}
-        app.kubernetes.io/component: snapshot{{/* 行说明：配置 app.kubernetes.io/component 字段，形成 snapshot-job.yaml 所需资源。 */}}
-    spec:{{/* 行说明：配置 spec 字段，形成 snapshot-job.yaml 所需资源。 */}}
+  {{/* 行说明：配置 backoffLimit 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+  backoffLimit: 2
+  {{/* 行说明：配置 activeDeadlineSeconds 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+  activeDeadlineSeconds: 600
+  {{/* 行说明：配置 template 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+  template:
+    {{/* 行说明：配置 metadata 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+    metadata:
+      {{/* 行说明：配置 labels 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+      labels:
+        {{/* 行说明：配置 app.kubernetes.io/name 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+        app.kubernetes.io/name: elasticsearch-client
+        {{/* 行说明：配置 app.kubernetes.io/instance 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        {{/* 行说明：配置 app.kubernetes.io/component 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+        app.kubernetes.io/component: snapshot
+    {{/* 行说明：配置 spec 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+    spec:
       # 失败后保留 Pod 日志，成功 Hook 由 Helm 的 hook-delete-policy 清理。
-      restartPolicy: Never{{/* 行说明：配置 restartPolicy 字段，形成 snapshot-job.yaml 所需资源。 */}}
-      securityContext:{{/* 行说明：配置 securityContext 字段，形成 snapshot-job.yaml 所需资源。 */}}
-        runAsNonRoot: true{{/* 行说明：配置 runAsNonRoot 字段，形成 snapshot-job.yaml 所需资源。 */}}
-        runAsUser: 1000{{/* 行说明：配置 runAsUser 字段，形成 snapshot-job.yaml 所需资源。 */}}
-        runAsGroup: 1000{{/* 行说明：配置 runAsGroup 字段，形成 snapshot-job.yaml 所需资源。 */}}
-        fsGroup: 1000{{/* 行说明：配置 fsGroup 字段，形成 snapshot-job.yaml 所需资源。 */}}
-        seccompProfile:{{/* 行说明：配置 seccompProfile 字段，形成 snapshot-job.yaml 所需资源。 */}}
-          type: RuntimeDefault{{/* 行说明：使用容器运行时提供的默认 seccomp 配置。 */}}
-      nodeSelector:{{/* 行说明：将 Elasticsearch 和快照任务限定到匹配架构的 Worker。 */}}
+      {{/* 行说明：配置 restartPolicy 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+      restartPolicy: Never
+      {{/* 行说明：配置 securityContext 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+      securityContext:
+        {{/* 行说明：配置 runAsNonRoot 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+        runAsNonRoot: true
+        {{/* 行说明：配置 runAsUser 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+        runAsUser: 1000
+        {{/* 行说明：配置 runAsGroup 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+        runAsGroup: 1000
+        {{/* 行说明：配置 fsGroup 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+        fsGroup: 1000
+        {{/* 行说明：配置 seccompProfile 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+        seccompProfile:
+          {{/* 行说明：使用容器运行时提供的默认 seccomp 配置。 */ -}}
+          type: RuntimeDefault
+      {{/* 行说明：将 Elasticsearch 和快照任务限定到匹配架构的 Worker。 */ -}}
+      nodeSelector:
         # Hook 与 StatefulSet 使用同一 ARM64 节点选择器，避免错误架构调度。
-        {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- toYaml .Values.nodeSelector | nindent 8 }}
-      {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- with .Values.image.pullSecrets }}
-      imagePullSecrets:{{/* 行说明：配置 imagePullSecrets 字段，形成 snapshot-job.yaml 所需资源。 */}}
-        {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}{{- toYaml . | nindent 8 }}
-      {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}{{- end }}
-      containers:{{/* 行说明：配置 containers 字段，形成 snapshot-job.yaml 所需资源。 */}}
-        - name: snapshot-register{{/* 行说明：命名负责注册快照仓库和 SLM 策略的 Hook 容器。 */}}
-          image: {{ include "uino-elasticsearch.image" . | quote }}{{/* 行说明：集中配置离线私有仓库中的 Elasticsearch 镜像。 */}}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}{{/* 行说明：配置 imagePullPolicy 字段，形成 snapshot-job.yaml 所需资源。 */}}
-          securityContext:{{/* 行说明：配置 securityContext 字段，形成 snapshot-job.yaml 所需资源。 */}}
-            runAsNonRoot: true{{/* 行说明：配置 runAsNonRoot 字段，形成 snapshot-job.yaml 所需资源。 */}}
-            runAsUser: 1000{{/* 行说明：配置 runAsUser 字段，形成 snapshot-job.yaml 所需资源。 */}}
-            runAsGroup: 1000{{/* 行说明：配置 runAsGroup 字段，形成 snapshot-job.yaml 所需资源。 */}}
-            allowPrivilegeEscalation: false{{/* 行说明：配置 allowPrivilegeEscalation 字段，形成 snapshot-job.yaml 所需资源。 */}}
-            readOnlyRootFilesystem: true{{/* 行说明：配置 readOnlyRootFilesystem 字段，形成 snapshot-job.yaml 所需资源。 */}}
-            capabilities:{{/* 行说明：配置 capabilities 字段，形成 snapshot-job.yaml 所需资源。 */}}
-              drop: ["ALL"]{{/* 行说明：配置 drop 字段，形成 snapshot-job.yaml 所需资源。 */}}
-          command: ["/bin/bash", "-ec"]{{/* 行说明：配置 command 字段，形成 snapshot-job.yaml 所需资源。 */}}
-          args:{{/* 行说明：配置 args 字段，形成 snapshot-job.yaml 所需资源。 */}}
-            - |{{/* 行说明：开始定义快照注册容器执行的多行 Shell 脚本。 */}}
+        {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+      {{- with .Values.image.pullSecrets }}
+      {{/* 行说明：配置 imagePullSecrets 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+      imagePullSecrets:
+        {{- /* 行说明：执行 Helm 模板表达式并将结果写入当前位置。 */}}
+        {{- toYaml . | nindent 8 }}
+      {{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}
+      {{- end }}
+      {{/* 行说明：配置 containers 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+      containers:
+        {{/* 行说明：命名负责注册快照仓库和 SLM 策略的 Hook 容器。 */ -}}
+        - name: snapshot-register
+          {{/* 行说明：集中配置离线私有仓库中的 Elasticsearch 镜像。 */ -}}
+          image: {{ include "uino-elasticsearch.image" . | quote }}
+          {{/* 行说明：配置 imagePullPolicy 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{/* 行说明：配置 securityContext 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+          securityContext:
+            {{/* 行说明：配置 runAsNonRoot 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+            runAsNonRoot: true
+            {{/* 行说明：配置 runAsUser 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+            runAsUser: 1000
+            {{/* 行说明：配置 runAsGroup 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+            runAsGroup: 1000
+            {{/* 行说明：配置 allowPrivilegeEscalation 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+            allowPrivilegeEscalation: false
+            {{/* 行说明：配置 readOnlyRootFilesystem 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+            readOnlyRootFilesystem: true
+            {{/* 行说明：配置 capabilities 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+            capabilities:
+              {{/* 行说明：配置 drop 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+              drop: ["ALL"]
+          {{/* 行说明：配置 command 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+          command: ["/bin/bash", "-ec"]
+          {{/* 行说明：配置 args 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+          args:
+            {{/* 行说明：开始定义快照注册容器执行的多行 Shell 脚本。 */ -}}
+            - |
               # 任一未处理错误都会终止 Job，禁止在失败后继续注册仓库。
-              set -euo pipefail{{/* 行说明：启用严格 Shell 错误处理，任一失败立即退出。 */}}
+              {{/* 行说明：启用严格 Shell 错误处理，任一失败立即退出。 */ -}}
+              set -euo pipefail
 
               # 使用受控方法、路径和 JSON 请求体访问集群；密码只经环境变量传递。
-              request() {{/* 行说明：定义统一调用 Elasticsearch HTTPS API 的 Shell 函数。 */}}{
-                local method="$1" path="$2" body="${3:-}"{{/* 行说明：依次读取 HTTP 方法、接口路径和可选 JSON 请求体。 */}}
-                local options=({{/* 行说明：初始化 curl 公共参数数组，避免各请求重复配置。 */}}
-                  --silent --show-error --fail{{/* 行说明：隐藏进度条、保留错误并让 HTTP 错误返回失败状态。 */}}
-                  --retry 2 --retry-connrefused --retry-delay 2{{/* 行说明：连接拒绝时最多重试两次且每次间隔两秒。 */}}
-                  --connect-timeout 5 --max-time 15{{/* 行说明：限制连接超时为五秒且单次请求最长十五秒。 */}}
-                  --cacert /etc/elasticsearch/tls/ca.crt{{/* 行说明：使用挂载的 CA 验证 Elasticsearch HTTPS 证书。 */}}
-                  --user "elastic:${ELASTIC_PASSWORD}"{{/* 行说明：使用 Secret 注入的 elastic 管理员密码进行基本认证。 */}}
-                  --request "${method}"{{/* 行说明：将函数参数指定的 HTTP 方法传给 curl。 */}}
-                ){{/* 行说明：结束 curl 公共参数数组定义。 */}}
-                if [[ -n "${body}" ]]; then{{/* 行说明：判断运行条件并在满足时执行受控分支。 */}}
-                  options+=(--header "Content-Type: application/json" --data-binary "${body}"){{/* 行说明：存在请求体时追加 JSON Content-Type 和原样请求数据。 */}}
-                fi{{/* 行说明：结束当前 Shell 控制块或函数定义。 */}}
-                curl "${options[@]}" "${ES_URL}${path}"{{/* 行说明：通过受控 TLS 参数调用 Elasticsearch HTTPS API。 */}}
-              }{{/* 行说明：结束统一 Elasticsearch API 请求函数。 */}}
+              {{/* 行说明：定义统一调用 Elasticsearch HTTPS API 的 Shell 函数。 */ -}}
+              request() {
+                {{/* 行说明：依次读取 HTTP 方法、接口路径和可选 JSON 请求体。 */ -}}
+                local method="$1" path="$2" body="${3:-}"
+                {{/* 行说明：初始化 curl 公共参数数组，避免各请求重复配置。 */ -}}
+                local options=(
+                  {{/* 行说明：隐藏进度条、保留错误并让 HTTP 错误返回失败状态。 */ -}}
+                  --silent --show-error --fail
+                  {{/* 行说明：连接拒绝时最多重试两次且每次间隔两秒。 */ -}}
+                  --retry 2 --retry-connrefused --retry-delay 2
+                  {{/* 行说明：限制连接超时为五秒且单次请求最长十五秒。 */ -}}
+                  --connect-timeout 5 --max-time 15
+                  {{/* 行说明：使用挂载的 CA 验证 Elasticsearch HTTPS 证书。 */ -}}
+                  --cacert /etc/elasticsearch/tls/ca.crt
+                  {{/* 行说明：使用 Secret 注入的 elastic 管理员密码进行基本认证。 */ -}}
+                  --user "elastic:${ELASTIC_PASSWORD}"
+                  {{/* 行说明：将函数参数指定的 HTTP 方法传给 curl。 */ -}}
+                  --request "${method}"
+                {{/* 行说明：结束 curl 公共参数数组定义。 */ -}}
+                )
+                {{/* 行说明：判断运行条件并在满足时执行受控分支。 */ -}}
+                if [[ -n "${body}" ]]; then
+                  {{/* 行说明：存在请求体时追加 JSON Content-Type 和原样请求数据。 */ -}}
+                  options+=(--header "Content-Type: application/json" --data-binary "${body}")
+                {{/* 行说明：结束当前 Shell 控制块或函数定义。 */ -}}
+                fi
+                {{/* 行说明：通过受控 TLS 参数调用 Elasticsearch HTTPS API。 */ -}}
+                curl "${options[@]}" "${ES_URL}${path}"
+              {{/* 行说明：结束统一 Elasticsearch API 请求函数。 */ -}}
+              }
 
               # 在固定次数内等待集群达到可写的黄色状态，避免无界轮询。
-              healthy=false{{/* 行说明：初始化集群健康检查成功标记。 */}}
-              for attempt in $(seq 1 20); do{{/* 行说明：在固定次数范围内执行有界重试。 */}}
-                if request GET "/_cluster/health?wait_for_status=yellow&timeout=5s" >/dev/null; then{{/* 行说明：请求集群健康接口并等待状态至少达到 yellow。 */}}
-                  healthy=true{{/* 行说明：记录集群已达到可注册快照仓库的健康状态。 */}}
-                  break{{/* 行说明：健康检查成功后立即结束重试循环。 */}}
-                fi{{/* 行说明：结束当前 Shell 控制块或函数定义。 */}}
-                if [[ "${attempt}" -eq 20 ]]; then{{/* 行说明：最后一次仍失败时进入明确的超时处理分支。 */}}
-                  echo "Elasticsearch did not become ready before the retry limit" >&2{{/* 行说明：向标准错误输出集群未及时就绪的原因。 */}}
-                  exit 1{{/* 行说明：以失败状态终止 Hook，阻止错误配置被继续提交。 */}}
-                fi{{/* 行说明：结束当前 Shell 控制块或函数定义。 */}}
-                sleep 5{{/* 行说明：相邻两次健康检查之间等待五秒。 */}}
-              done{{/* 行说明：结束最多二十次的集群健康检查循环。 */}}
-              [[ "${healthy}" == true ]] || exit 1{{/* 行说明：仅允许健康检查已成功时继续注册快照仓库。 */}}
+              {{/* 行说明：初始化集群健康检查成功标记。 */ -}}
+              healthy=false
+              {{/* 行说明：在固定次数范围内执行有界重试。 */ -}}
+              for attempt in $(seq 1 20); do
+                {{/* 行说明：请求集群健康接口并等待状态至少达到 yellow。 */ -}}
+                if request GET "/_cluster/health?wait_for_status=yellow&timeout=5s" >/dev/null; then
+                  {{/* 行说明：记录集群已达到可注册快照仓库的健康状态。 */ -}}
+                  healthy=true
+                  {{/* 行说明：健康检查成功后立即结束重试循环。 */ -}}
+                  break
+                {{/* 行说明：结束当前 Shell 控制块或函数定义。 */ -}}
+                fi
+                {{/* 行说明：最后一次仍失败时进入明确的超时处理分支。 */ -}}
+                if [[ "${attempt}" -eq 20 ]]; then
+                  {{/* 行说明：向标准错误输出集群未及时就绪的原因。 */ -}}
+                  echo "Elasticsearch did not become ready before the retry limit" >&2
+                  {{/* 行说明：以失败状态终止 Hook，阻止错误配置被继续提交。 */ -}}
+                  exit 1
+                {{/* 行说明：结束当前 Shell 控制块或函数定义。 */ -}}
+                fi
+                {{/* 行说明：相邻两次健康检查之间等待五秒。 */ -}}
+                sleep 5
+              {{/* 行说明：结束最多二十次的集群健康检查循环。 */ -}}
+              done
+              {{/* 行说明：仅允许健康检查已成功时继续注册快照仓库。 */ -}}
+              [[ "${healthy}" == true ]] || exit 1
 
               # 注册 fs 仓库后立刻执行节点级可读写校验；失败不会删除已有快照。
-              repository_body=$(printf {{/* 行说明：开始构造文件系统快照仓库的 JSON 请求体。 */}}\
-                '{"type":"fs","settings":{"location":"%s","compress":true}}' {{/* 行说明：定义 fs 仓库位置并启用快照元数据压缩。 */}}\
-                "${SNAPSHOT_LOCATION}"){{/* 行说明：将当前集群独占的 NFS 子目录填入仓库位置。 */}}
-              request PUT "/_snapshot/${REPOSITORY_NAME}" "${repository_body}" >/dev/null{{/* 行说明：调用统一请求函数执行 Elasticsearch API 操作。 */}}
-              request POST "/_snapshot/${REPOSITORY_NAME}/_verify" >/dev/null{{/* 行说明：调用统一请求函数执行 Elasticsearch API 操作。 */}}
+              {{/* 行说明：开始构造文件系统快照仓库的 JSON 请求体。 */ -}}
+              repository_body=$(printf \
+                {{/* 行说明：定义 fs 仓库位置并启用快照元数据压缩。 */ -}}
+                '{"type":"fs","settings":{"location":"%s","compress":true}}' \
+                {{/* 行说明：将当前集群独占的 NFS 子目录填入仓库位置。 */ -}}
+                "${SNAPSHOT_LOCATION}")
+              {{/* 行说明：调用统一请求函数执行 Elasticsearch API 操作。 */ -}}
+              request PUT "/_snapshot/${REPOSITORY_NAME}" "${repository_body}" >/dev/null
+              {{/* 行说明：调用统一请求函数执行 Elasticsearch API 操作。 */ -}}
+              request POST "/_snapshot/${REPOSITORY_NAME}/_verify" >/dev/null
 
               # SLM 关闭时只注册并验证仓库，不向集群创建定时策略。
-              if [[ "${SLM_ENABLED}" == true ]]; then{{/* 行说明：判断运行条件并在满足时执行受控分支。 */}}
-                slm_body=$(printf {{/* 行说明：开始构造 SLM 定时快照策略的 JSON 请求体。 */}}\
-                  '{"schedule":"%s","name":"%s","repository":"%s","config":{"indices":["*"],"include_global_state":true},"retention":{"expire_after":"%s","min_count":%s,"max_count":%s}}' {{/* 行说明：声明执行计划、快照名、仓库、全索引范围和保留规则。 */}}\
-                  "${SLM_SCHEDULE}" "${SLM_SNAPSHOT_NAME}" "${REPOSITORY_NAME}" {{/* 行说明：填入 SLM 执行计划、快照名称表达式和仓库名。 */}}\
-                  "${SLM_EXPIRE_AFTER}" "${SLM_MIN_COUNT}" "${SLM_MAX_COUNT}"){{/* 行说明：填入过期时长及最小和最大保留数量。 */}}
-                request PUT "/_slm/policy/${SLM_POLICY_NAME}" "${slm_body}" >/dev/null{{/* 行说明：调用统一请求函数执行 Elasticsearch API 操作。 */}}
-              fi{{/* 行说明：结束当前 Shell 控制块或函数定义。 */}}
-          env:{{/* 行说明：配置 env 字段，形成 snapshot-job.yaml 所需资源。 */}}
+              {{/* 行说明：判断运行条件并在满足时执行受控分支。 */ -}}
+              if [[ "${SLM_ENABLED}" == true ]]; then
+                {{/* 行说明：开始构造 SLM 定时快照策略的 JSON 请求体。 */ -}}
+                slm_body=$(printf \
+                  {{/* 行说明：声明执行计划、快照名、仓库、全索引范围和保留规则。 */ -}}
+                  '{"schedule":"%s","name":"%s","repository":"%s","config":{"indices":["*"],"include_global_state":true},"retention":{"expire_after":"%s","min_count":%s,"max_count":%s}}' \
+                  {{/* 行说明：填入 SLM 执行计划、快照名称表达式和仓库名。 */ -}}
+                  "${SLM_SCHEDULE}" "${SLM_SNAPSHOT_NAME}" "${REPOSITORY_NAME}" \
+                  {{/* 行说明：填入过期时长及最小和最大保留数量。 */ -}}
+                  "${SLM_EXPIRE_AFTER}" "${SLM_MIN_COUNT}" "${SLM_MAX_COUNT}")
+                {{/* 行说明：调用统一请求函数执行 Elasticsearch API 操作。 */ -}}
+                request PUT "/_slm/policy/${SLM_POLICY_NAME}" "${slm_body}" >/dev/null
+              {{/* 行说明：结束当前 Shell 控制块或函数定义。 */ -}}
+              fi
+          {{/* 行说明：配置 env 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+          env:
             # 集群内部 Service 的 HTTPS 地址，传输中始终使用挂载 CA 校验。
-            - name: ES_URL{{/* 行说明：声明快照 Hook 访问 Elasticsearch 的内部 HTTPS 地址变量。 */}}
-              value: {{ printf "https://%s:%v" (include "uino-elasticsearch.fullname" .) .Values.service.port | quote }}{{/* 行说明：组合集群 Service 名和 HTTPS 端口形成内部访问地址。 */}}
-            - name: ELASTIC_PASSWORD{{/* 行说明：声明 Elasticsearch elastic 管理员密码环境变量。 */}}
+            {{/* 行说明：声明快照 Hook 访问 Elasticsearch 的内部 HTTPS 地址变量。 */ -}}
+            - name: ES_URL
+              {{/* 行说明：组合集群 Service 名和 HTTPS 端口形成内部访问地址。 */ -}}
+              value: {{ printf "https://%s:%v" (include "uino-elasticsearch.fullname" .) .Values.service.port | quote }}
+            {{/* 行说明：声明 Elasticsearch elastic 管理员密码环境变量。 */ -}}
+            - name: ELASTIC_PASSWORD
               # 管理员密码只从既有或 Chart 管理的 Secret 读取，绝不写入模板。
-              valueFrom:{{/* 行说明：配置 valueFrom 字段，形成 snapshot-job.yaml 所需资源。 */}}
-                secretKeyRef:{{/* 行说明：配置 secretKeyRef 字段，形成 snapshot-job.yaml 所需资源。 */}}
-                  name: {{ include "uino-elasticsearch.credentialsSecretName" . }}{{/* 行说明：引用 Chart 管理或客户预置的管理员凭据 Secret。 */}}
-                  key: elastic-password{{/* 行说明：配置 key 字段，形成 snapshot-job.yaml 所需资源。 */}}
-            - name: REPOSITORY_NAME{{/* 行说明：声明 Elasticsearch 快照仓库名称环境变量。 */}}
-              value: {{ .Values.snapshot.repositoryName | quote }}{{/* 行说明：传入 values 中配置的快照仓库名称。 */}}
-            - name: SNAPSHOT_LOCATION{{/* 行说明：声明 Elasticsearch 文件系统仓库位置环境变量。 */}}
+              {{/* 行说明：配置 valueFrom 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+              valueFrom:
+                {{/* 行说明：配置 secretKeyRef 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+                secretKeyRef:
+                  {{/* 行说明：引用 Chart 管理或客户预置的管理员凭据 Secret。 */ -}}
+                  name: {{ include "uino-elasticsearch.credentialsSecretName" . }}
+                  {{/* 行说明：配置 key 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+                  key: elastic-password
+            {{/* 行说明：声明 Elasticsearch 快照仓库名称环境变量。 */ -}}
+            - name: REPOSITORY_NAME
+              {{/* 行说明：传入 values 中配置的快照仓库名称。 */ -}}
+              value: {{ .Values.snapshot.repositoryName | quote }}
+            {{/* 行说明：声明 Elasticsearch 文件系统仓库位置环境变量。 */ -}}
+            - name: SNAPSHOT_LOCATION
               # Schema 已保证目录是受限的独立集群子目录，不允许路径穿越。
-              value: {{ printf "%s/%s" (trimSuffix "/" .Values.snapshot.mountPath) .Values.snapshot.clusterPath | quote }}{{/* 行说明：组合 NFS 容器挂载点和当前集群独占子目录。 */}}
-            - name: SLM_ENABLED{{/* 行说明：声明是否创建 SLM 策略的开关变量。 */}}
-              value: {{ .Values.snapshot.slm.enabled | quote }}{{/* 行说明：传入 values 中的 SLM 启用状态。 */}}
-            - name: SLM_POLICY_NAME{{/* 行说明：声明 SLM 策略名称环境变量。 */}}
-              value: {{ .Values.snapshot.slm.name | quote }}{{/* 行说明：传入 values 中配置的 SLM 策略名称。 */}}
-            - name: SLM_SCHEDULE{{/* 行说明：声明 SLM cron 执行计划环境变量。 */}}
-              value: {{ .Values.snapshot.slm.schedule | quote }}{{/* 行说明：传入 values 中配置的 Elasticsearch cron 表达式。 */}}
-            - name: SLM_SNAPSHOT_NAME{{/* 行说明：声明 SLM 快照名称表达式环境变量。 */}}
-              value: {{ .Values.snapshot.slm.snapshotName | quote }}{{/* 行说明：传入包含日期占位符的快照名称表达式。 */}}
-            - name: SLM_EXPIRE_AFTER{{/* 行说明：声明 SLM 快照过期时长环境变量。 */}}
-              value: {{ .Values.snapshot.slm.retention.expireAfter | quote }}{{/* 行说明：传入快照可被清理前的保留时长。 */}}
-            - name: SLM_MIN_COUNT{{/* 行说明：声明 SLM 最小保留数量环境变量。 */}}
-              value: {{ .Values.snapshot.slm.retention.minCount | quote }}{{/* 行说明：传入清理后必须保留的最少快照数量。 */}}
-            - name: SLM_MAX_COUNT{{/* 行说明：声明 SLM 最大保留数量环境变量。 */}}
-              value: {{ .Values.snapshot.slm.retention.maxCount | quote }}{{/* 行说明：传入仓库允许保留的最大快照数量。 */}}
-          volumeMounts:{{/* 行说明：配置 volumeMounts 字段，形成 snapshot-job.yaml 所需资源。 */}}
+              {{/* 行说明：组合 NFS 容器挂载点和当前集群独占子目录。 */ -}}
+              value: {{ printf "%s/%s" (trimSuffix "/" .Values.snapshot.mountPath) .Values.snapshot.clusterPath | quote }}
+            {{/* 行说明：声明是否创建 SLM 策略的开关变量。 */ -}}
+            - name: SLM_ENABLED
+              {{/* 行说明：传入 values 中的 SLM 启用状态。 */ -}}
+              value: {{ .Values.snapshot.slm.enabled | quote }}
+            {{/* 行说明：声明 SLM 策略名称环境变量。 */ -}}
+            - name: SLM_POLICY_NAME
+              {{/* 行说明：传入 values 中配置的 SLM 策略名称。 */ -}}
+              value: {{ .Values.snapshot.slm.name | quote }}
+            {{/* 行说明：声明 SLM cron 执行计划环境变量。 */ -}}
+            - name: SLM_SCHEDULE
+              {{/* 行说明：传入 values 中配置的 Elasticsearch cron 表达式。 */ -}}
+              value: {{ .Values.snapshot.slm.schedule | quote }}
+            {{/* 行说明：声明 SLM 快照名称表达式环境变量。 */ -}}
+            - name: SLM_SNAPSHOT_NAME
+              {{/* 行说明：传入包含日期占位符的快照名称表达式。 */ -}}
+              value: {{ .Values.snapshot.slm.snapshotName | quote }}
+            {{/* 行说明：声明 SLM 快照过期时长环境变量。 */ -}}
+            - name: SLM_EXPIRE_AFTER
+              {{/* 行说明：传入快照可被清理前的保留时长。 */ -}}
+              value: {{ .Values.snapshot.slm.retention.expireAfter | quote }}
+            {{/* 行说明：声明 SLM 最小保留数量环境变量。 */ -}}
+            - name: SLM_MIN_COUNT
+              {{/* 行说明：传入清理后必须保留的最少快照数量。 */ -}}
+              value: {{ .Values.snapshot.slm.retention.minCount | quote }}
+            {{/* 行说明：声明 SLM 最大保留数量环境变量。 */ -}}
+            - name: SLM_MAX_COUNT
+              {{/* 行说明：传入仓库允许保留的最大快照数量。 */ -}}
+              value: {{ .Values.snapshot.slm.retention.maxCount | quote }}
+          {{/* 行说明：配置 volumeMounts 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+          volumeMounts:
             # 仅挂载 CA，不挂载快照 NFS；NFS 由 Elasticsearch 节点自身访问。
-            - name: tls-ca{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-              mountPath: /etc/elasticsearch/tls{{/* 行说明：将 CA 证书挂载到快照注册容器的 TLS 目录。 */}}
-              readOnly: true{{/* 行说明：配置 readOnly 字段，形成 snapshot-job.yaml 所需资源。 */}}
-      volumes:{{/* 行说明：配置 volumes 字段，形成 snapshot-job.yaml 所需资源。 */}}
+            {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+            - name: tls-ca
+              {{/* 行说明：将 CA 证书挂载到快照注册容器的 TLS 目录。 */ -}}
+              mountPath: /etc/elasticsearch/tls
+              {{/* 行说明：配置 readOnly 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+              readOnly: true
+      {{/* 行说明：配置 volumes 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+      volumes:
         # CA Secret 只读挂载，防止 Hook 修改 TLS 身份材料。
-        - name: tls-ca{{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */}}
-          secret:{{/* 行说明：配置 secret 字段，形成 snapshot-job.yaml 所需资源。 */}}
-            secretName: {{ include "uino-elasticsearch.tlsSecretName" . }}{{/* 行说明：配置 secretName 字段，形成 snapshot-job.yaml 所需资源。 */}}
-            defaultMode: 0440{{/* 行说明：配置 defaultMode 字段，形成 snapshot-job.yaml 所需资源。 */}}
-            items:{{/* 行说明：配置 items 字段，形成 snapshot-job.yaml 所需资源。 */}}
-              - key: ca.crt{{/* 行说明：配置 key 字段，形成 snapshot-job.yaml 所需资源。 */}}
-                path: ca.crt{{/* 行说明：将 Secret 中的 CA 内容投影为 ca.crt 文件。 */}}
-{{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}{{- end }}
+        {{/* 行说明：设置当前对象、容器、端口或引用项的名称。 */ -}}
+        - name: tls-ca
+          {{/* 行说明：配置 secret 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+          secret:
+            {{/* 行说明：配置 secretName 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+            secretName: {{ include "uino-elasticsearch.tlsSecretName" . }}
+            {{/* 行说明：配置 defaultMode 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+            defaultMode: 0440
+            {{/* 行说明：配置 items 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+            items:
+              {{/* 行说明：配置 key 字段，形成 snapshot-job.yaml 所需资源。 */ -}}
+              - key: ca.crt
+                {{/* 行说明：将 Secret 中的 CA 内容投影为 ca.crt 文件。 */ -}}
+                path: ca.crt
+{{- /* 行说明：结束当前 Helm 定义、条件或遍历块。 */}}
+{{- end }}
