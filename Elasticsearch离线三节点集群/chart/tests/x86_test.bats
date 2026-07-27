@@ -10,7 +10,7 @@ setup() {
   # 从测试目录定位 Chart、完整有效 fixture 和 x86 镜像覆盖文件。
   CHART_DIR="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   FIXTURE="$BATS_TEST_DIRNAME/fixtures/valid-values.yaml"
-  X86_VALUES="$CHART_DIR/values.x86.example.yaml"
+  X86_VALUES="$CHART_DIR/values.x86.yaml"
 }
 
 @test "x86 overlay renders the amd64 digest-pinned image" {

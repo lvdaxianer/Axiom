@@ -21,7 +21,7 @@ setup() {
     "$CHART_DIR/Chart.yaml"
     "$CHART_DIR/values.yaml"
     "$CHART_DIR/values.customer.example.yaml"
-    "$CHART_DIR/values.x86.example.yaml"
+    "$CHART_DIR/values.x86.yaml"
     "$CHART_DIR/tests/fixtures/valid-values.yaml"
     "$CHART_DIR/templates/"*
   )

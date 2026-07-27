@@ -1,5 +1,5 @@
 # 文件说明：提供 x86_64/AMD64 测试使用的私有镜像和节点调度覆盖值。
-# 使用方式：helm template ... -f tests/fixtures/valid-values.yaml -f values.x86.example.yaml。
+# 使用方式：helm template ... -f tests/fixtures/valid-values.yaml -f values.x86.yaml。
 # 该文件仅用于 139 测试环境，客户 ARM64 部署继续使用 ARM64 values。
 image: # 行说明：覆盖为客户私有仓库中的 x86_64 Elasticsearch 镜像。
   repository: 10.100.30.139/library/elasticsearch # 行说明：指定 139 服务器私有仓库中的 Elasticsearch 镜像路径。
