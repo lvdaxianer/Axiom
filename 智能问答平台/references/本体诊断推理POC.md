@@ -239,25 +239,31 @@ PostgreSQL 保存可查询的状态、关联、审核与审计；GraphDB 只保�
 
 | 表 | 主键与关键列 | 数据责任 |
 | --- | --- | --- |
-| `document_unit` | `id`、`document_id`、`kind`、`title_path`、`text`、`location_json`、`content_hash` | FAQ、标题、段落、表格、代码块等统一输入 |
-| `evidence_span` | `id`、`unit_id`、`quote`、`char_start`、`char_end`、`content_hash` | 所有知识对象回链的原子证据 |
-| `knowledge_item` | `id`、`kind`、`status`、`revision`、`payload_jsonb`、`created_by` | `concept`、`fact`、`rule`、`mapping`、`knowledge_gap` |
-| `knowledge_evidence` | `knowledge_item_id`、`target_path`、`evidence_id` | 条件、诊断、动作、步骤与证据的精确绑定 |
-| `review_decision` | `id`、`item_id`、`decision`、`before_jsonb`、`after_jsonb`、`reason`、`reviewer` | 人工审核及前后差异 |
-| `knowledge_version` | `version`、`status`、`manifest_jsonb`、`graph_checksum`、`rule_checksum` | 暂存、发布、失败、废弃的版本状态 |
-| `version_item` | `knowledge_version`、`knowledge_item_id`、`item_revision` | 将批准对象冻结到发布快照 |
-| `query_run` | `id`、`parent_run_id`、`revision`、`input_jsonb`、`facts_jsonb`、`manifest_jsonb`、`result_jsonb` | 问题、补答、推理和回放 |
-| `proof_node` / `proof_edge` | `run_id`、节点/边 ID、`kind`、`predicate`、`payload_jsonb` | 二维和三维证明图的直接数据源 |
+| `document_unit` | `id`、`tenant_id`、`document_id`、`kind`、`title_path`、`text`、`location_json`、`content_hash` | FAQ、标题、段落、表格、代码块等统一输入 |
+| `evidence_span` | `id`、`tenant_id`、`unit_id`、`quote`、`char_start`、`char_end`、`content_hash` | 所有知识对象回链的原子证据 |
+| `knowledge_item` | `id`、`tenant_id`、`kind`、`status`、`revision`、`payload_jsonb`、`created_by` | `concept`、`fact`、`rule`、`mapping`、`knowledge_gap` |
+| `knowledge_evidence` | `tenant_id`、`knowledge_item_id`、`target_path`、`evidence_id` | 条件、诊断、动作、步骤与证据的精确绑定 |
+| `review_decision` | `id`、`tenant_id`、`item_id`、`decision`、`before_jsonb`、`after_jsonb`、`reason`、`reviewer` | 人工审核及前后差异 |
+| `knowledge_version` | `tenant_id`、`version`、`status`、`manifest_jsonb`、`graph_checksum`、`rule_checksum` | 暂存、发布、失败、废弃的版本状态 |
+| `version_item` | `tenant_id`、`knowledge_version`、`knowledge_item_id`、`item_revision` | 将批准对象冻结到发布快照 |
+| `query_run` | `id`、`tenant_id`、`principal_id`、`parent_run_id`、`revision`、`input_jsonb`、`facts_jsonb`、`manifest_jsonb`、`result_jsonb` | 问题、补答、推理和回放 |
+| `proof_node` / `proof_edge` | `tenant_id`、`run_id`、节点/边 ID、`kind`、`predicate`、`payload_jsonb` | 二维和三维证明图的直接数据源 |
+| `active_manifest_pointer` | `tenant_id`、`scope`、`knowledge_version`、`manifest_checksum`、`updated_at` | 运行时唯一的已发布 manifest 指针 |
+| `idempotency_record` | `tenant_id`、`principal_id`、`route`、`idempotency_key`、`request_hash`、`response_jsonb`、`expires_at` | 写请求的去重与重试响应 |
+| `operation` | `id`、`tenant_id`、`kind`、`status`、`request_jsonb`、`result_jsonb`、`error_jsonb` | 发布与预检的持久化进度、结果和恢复依据 |
 
 强制约束如下：
 
 ```text
 document_unit(document_id, location_json, content_hash) 唯一；
+所有业务表均以 tenant_id 参与唯一键、查询谓词和外键校验，不能由客户端 body 中的 tenantId 决定可见范围；
 evidence_span 的 [char_start, char_end) 必须落在对应 unit.text 内，quote 必须逐字相等；
 knowledge_item 的 (id, revision) 唯一，已审核 revision 不可原地更新；
 knowledge_evidence 的 (knowledge_item_id, target_path, evidence_id) 唯一；
 version_item 只能引用 status=approved 的指定 revision；
 knowledge_version.status=published 后，manifest_jsonb、checksum 和 version_item 不可修改；
+active_manifest_pointer 的 (tenant_id, scope) 唯一，且只能引用 status=published、checksum 一致的 knowledge_version；
+operation.status 只能为 queued、running、succeeded 或 failed；发布 operation 必须保存目标版本和 manifest checksum；
 query_run 的 revision 只能新增，补答通过 parent_run_id 建立时间线；
 proof_node/proof_edge 必须引用同一个 query_run revision，edge 的两端节点必须存在。
 ```
@@ -364,7 +370,7 @@ dependsOn, causedBy, fixedBy, appliesTo, precedes。
         {"field":"symptom","operator":"=","value":"MapPointClickIneffective"}
       ]},
       "then":{"diagnoses":["MapPointPlacementDefect"],"actions":["ManuallyAddMapPoint","UpgradeToVersion:3.5.5"],"steps":[{"order":1,"action":"ManuallyAddMapPoint"},{"order":2,"action":"UpgradeToVersion:3.5.5"}]},
-      "evidenceBindings":[{"target":"when.all[0]","evidenceRefs":["EV-2579-version"]},{"target":"when.all[1]","evidenceRefs":["EV-2579-symptom"]},{"target":"then.diagnoses[0]","evidenceRefs":["EV-2579-cause"]},{"target":"then.steps[0]","evidenceRefs":["EV-2579-solution-1"]},{"target":"then.steps[1]","evidenceRefs":["EV-2579-solution-2"]}]
+      "evidenceBindings":[{"target":"when.all[0]","evidenceRefs":["EV-2579-version"]},{"target":"when.all[1]","evidenceRefs":["EV-2579-symptom"]},{"target":"then.diagnoses[0]","evidenceRefs":["EV-2579-cause"]},{"target":"then.actions[0]","evidenceRefs":["EV-2579-solution-1"]},{"target":"then.actions[1]","evidenceRefs":["EV-2579-solution-2"]},{"target":"then.steps[0]","evidenceRefs":["EV-2579-solution-1"]},{"target":"then.steps[1]","evidenceRefs":["EV-2579-solution-2"]}]
     }
   ],
   "evidenceSpans":[
@@ -430,7 +436,7 @@ dependsOn, causedBy, fixedBy, appliesTo, precedes。
       "when":{"all":[{"field":"event","operator":"=","value":"CancelAlarm"}]},
       "then":{"diagnoses":[],"actions":["UpdateConfiguration"],"steps":[{"order":1,"action":"UpdateConfiguration"}]},
       "constraints":["CancelAlarmMustPairWithAlarm"],
-      "evidenceBindings":[{"target":"when.all[0]","evidenceRefs":["EV-2-event"]},{"target":"constraints[0]","evidenceRefs":["EV-2-constraint"]},{"target":"then.steps[0]","evidenceRefs":["EV-2-action"]}]
+      "evidenceBindings":[{"target":"when.all[0]","evidenceRefs":["EV-2-event"]},{"target":"constraints[0]","evidenceRefs":["EV-2-constraint"]},{"target":"then.actions[0]","evidenceRefs":["EV-2-action"]},{"target":"then.steps[0]","evidenceRefs":["EV-2-action"]}]
     }
   ],
   "concepts":[],
@@ -463,7 +469,7 @@ dependsOn, causedBy, fixedBy, appliesTo, precedes。
         {"field":"symptom","operator":"=","value":"GroundModelNotDisplayed"}
       ]},
       "then":{"diagnoses":[],"actions":["ReuploadParkTjsSceneFile"],"steps":[{"order":1,"action":"ReuploadParkTjsSceneFile"}]},
-      "evidenceBindings":[{"target":"when.all[0]","evidenceRefs":["EV-3-source"]},{"target":"when.all[1]","evidenceRefs":["EV-3-target"]},{"target":"when.all[2]","evidenceRefs":["EV-3-symptom"]},{"target":"then.steps[0]","evidenceRefs":["EV-3-action"]}]
+      "evidenceBindings":[{"target":"when.all[0]","evidenceRefs":["EV-3-source"]},{"target":"when.all[1]","evidenceRefs":["EV-3-target"]},{"target":"when.all[2]","evidenceRefs":["EV-3-symptom"]},{"target":"then.actions[0]","evidenceRefs":["EV-3-action"]},{"target":"then.steps[0]","evidenceRefs":["EV-3-action"]}]
     }
   ],
   "concepts":[],
@@ -491,7 +497,7 @@ dependsOn, causedBy, fixedBy, appliesTo, precedes。
     {
       "when":{"all":[{"field":"symptom","operator":"=","value":"CadConversionStuck"}]},
       "then":{"diagnoses":["CadFileTooLarge"],"actions":["SplitCadFileAndUploadSeparately"],"steps":[{"order":1,"action":"SplitCadFileAndUploadSeparately"}]},
-      "evidenceBindings":[{"target":"when.all[0]","evidenceRefs":["EV-4-symptom"]},{"target":"then.diagnoses[0]","evidenceRefs":["EV-4-cause"]},{"target":"then.steps[0]","evidenceRefs":["EV-4-action"]}]
+      "evidenceBindings":[{"target":"when.all[0]","evidenceRefs":["EV-4-symptom"]},{"target":"then.diagnoses[0]","evidenceRefs":["EV-4-cause"]},{"target":"then.actions[0]","evidenceRefs":["EV-4-action"]},{"target":"then.steps[0]","evidenceRefs":["EV-4-action"]}]
     }
   ],
   "concepts":[],
@@ -617,6 +623,7 @@ dependsOn, causedBy, fixedBy, appliesTo, precedes。
 4. “怎么解决”“如何处理”写入 goal=diagnose_and_remediate。
 5. 不要把问题中的猜测当成事实，例如“是不是缓存问题”只能写 suspectedCauseFromUser。
 6. 输出 JSON，不要输出答案或解释。
+7. 每个 facts 元素必须输出 field、rawValue、sourceQuote、charStart、charEnd、valueTypeHint 和 confidence；不得自行补出原文没有的值。
 
 已有已批准概念：
 {{approved_ontology_context}}
@@ -636,9 +643,9 @@ dependsOn, causedBy, fixedBy, appliesTo, precedes。
 输出：
 {
   "facts":[
-    {"field":"sourceVersion","value":"4.2.2"},
-    {"field":"targetVersion","value":"4.2.3"},
-    {"field":"symptom","value":"GroundModelNotDisplayed"}
+    {"field":"sourceVersion","rawValue":"4.2.2","sourceQuote":"4.2.2","charStart":0,"charEnd":5,"valueTypeHint":"version","confidence":0.99},
+    {"field":"targetVersion","rawValue":"4.2.3","sourceQuote":"4.2.3","charStart":8,"charEnd":13,"valueTypeHint":"version","confidence":0.99},
+    {"field":"symptom","rawValue":"地面模型不显示","sourceQuote":"地面模型不显示","charStart":15,"charEnd":22,"valueTypeHint":"concept","confidence":0.97}
   ],
   "goal":"diagnose_and_remediate",
   "missingFacts":[],
@@ -646,6 +653,12 @@ dependsOn, causedBy, fixedBy, appliesTo, precedes。
   "requiresReview":false
 }
 ```
+
+### 6.2 候选问题事实与正式 QueryFact
+
+问题解析模型输出的是 `CandidateQueryFact`，不是可直接推理的事实。每个候选事实必须包含 `field`、`rawValue`、`sourceQuote`、`charStart`、`charEnd`、`valueTypeHint` 和 `confidence`；`sourceQuote` 必须逐字位于客户问题中。模型只能输出 `operator="="`，不得直接产生否定、范围或派生事实。`requiresReview=true`、未知字段、未批准概念、无法解析的版本/数值，或 span 校验失败时，该候选只写入解析审计记录并进入 `unresolvedFacts`，不得生成 `QueryFact`。
+
+标准化服务依次执行字段白名单校验、类型解析、SKOS 别名/批准映射查找和来源归属。成功后才生成 `QueryFact(field, operator, value, valueType, origin, sourceSpanId)`；来自问题的 `origin=question`，来自调用上下文的 `origin=context`，由已批准映射或规则推导的事实分别为 `approved_mapping`、`derived_fact`。标准化后若仍有 `unresolvedFacts`，推理照常只使用有效事实；若它们正是候选规则所需字段，返回 `need_more_information` 并追问，若没有任何已批准规则可匹配则返回 `no_approved_rule`，同时返回不可作为结论依据的解析说明。
 
 ## 7. 跨本体映射审核提示词
 
@@ -690,17 +703,17 @@ flowchart TD
 
 审核人必须能看到原文、抽取结构、置信度、候选影响范围和预期推理路径。审核不是只点击“通过”，还可以编辑规范概念、条件、动作、优先级、生效期和证据。
 
-### 8.1 发布版本与原子切换
+### 8.1 发布版本与可恢复的一致性切换
 
-审核通过不等于可推理。发布协调器为每个 `knowledgeVersion` 创建不可变 manifest，并依次执行：
+审核通过不等于可推理。POC 不尝试让 PostgreSQL、GraphDB 与文件系统做分布式事务；运行时只认 PostgreSQL 中的 `active_manifest_pointer`。GraphDB 命名图和 Datalog 产物都按 manifest 的内容寻址、不可变保存，既不使用可变 GraphDB 别名，也不使用可变文件指针。发布协调器为每个 `knowledgeVersion` 创建不可变 manifest，并依次执行：
 
 ```text
 1. 冻结批准事实、规则、映射、EvidenceSpan 和其审核版本；
-2. 写入 GraphDB 暂存命名图 `urn:knowledge:<version>:staging`；
+2. 写入 GraphDB 不可变命名图 `urn:knowledge:<tenant>:<version>:<manifestChecksum>`；
 3. 生成 Datalog 输入和程序，执行编译与规则测试；
 4. 写入 PostgreSQL manifest，记录图谱、规则、映射和证据的 checksum；
-5. 所有校验通过后，在单一数据库事务中将版本状态由 staging 改为 published；
-6. 将 GraphDB 别名和 Datalog artifact 指针原子切换至该 manifest；任一步失败则保留旧 published 版本，并标记本版本 failed。
+5. 在单一数据库事务中锁定该租户的 `active_manifest_pointer`，再次校验所有 checksum，将版本状态由 staging 改为 published，并更新该指针；
+6. 事务提交后不再改写 GraphDB 或 Datalog 产物。运行时通过新指针读取 manifest 中的精确图名和 artifact 路径；任一步在事务提交前失败则指针保持旧值，本版本保留 staged 以便重试或标记 failed。
 ```
 
 ```json
@@ -717,7 +730,9 @@ flowchart TD
 }
 ```
 
-运行时只能加载 `status=published` 的 manifest。`QueryRun` 保存完整 manifest，而不只保存一个可变的版本字符串，以保证图谱、规则和 Datalog 程序来自同一快照。
+发布恢复规则固定如下：事务提交前进程中断时，旧 pointer 继续服务，协调器可基于 checksum 复用已生成的 staged 产物或将其标记 failed；事务提交后，新 pointer 即为唯一真相，恢复器只校验其 manifest、GraphDB 图和 artifact 的 checksum，不得回退或重写它们。恢复器发现已提交 manifest 缺失或 checksum 不匹配时，停止该租户推理并返回受控故障，不得静默回退到另一版本。这样所有时刻要么完整使用旧 manifest，要么完整使用新 manifest。
+
+运行时只能加载 `active_manifest_pointer` 指向且 `status=published` 的 manifest。`QueryRun` 保存完整 manifest，而不只保存一个可变的版本字符串，以保证图谱、规则和 Datalog 程序来自同一快照。
 
 ### 8.2 候选到发布的审核状态机
 
@@ -734,10 +749,26 @@ published -> deprecated
 
 本节定义 POC 的确定性运行时。LLM 只在进入推理前把客户问题转为候选事实；一旦事实通过 Schema、术语和类型校验，根因、动作、冲突和缺失信息只能由已发布的规则、映射和事实推导。运行时不得让 LLM 临时增加规则或补全根因。
 
+### 9.0 身份、租户与访问控制
+
+请求在 API 统一认证入口被转换为不可由前端伪造的 `Principal`：
+
+```json
+{
+  "principalId": "user-42",
+  "tenantIds": ["demo"],
+  "roles": ["knowledge_reviewer"],
+  "evidenceScopes": ["support_internal"],
+  "authTime": "2026-08-20T10:00:00+08:00"
+}
+```
+
+本地 POC 可使用固定的开发身份适配器生成该对象；业务服务只接收认证入口生成的 `Principal`，不信任 body 里的 `reviewer`、`principalId` 或 `tenantId`。客户端可选择 `tenantId`，但服务端必须先验证它属于 `Principal.tenantIds`，并在 PostgreSQL、GraphDB 图名、manifest、QueryRun 与 EvidenceSpan 查询中强制加同一租户谓词。角色最小权限固定为：`knowledge_reader` 只读已发布结论和被授权证据；`knowledge_reviewer` 可编辑/审核候选；`knowledge_publisher` 可创建和发布版本；`knowledge_admin` 管理本地 POC 身份与全租户配置。证据详情额外要求 `evidenceScopes` 命中字段分类；否则仅返回脱敏摘要。任何不满足条件的资源读取返回 `404`，操作返回 `403 authorization_denied`，不得泄露另一租户的对象是否存在。
+
 ### 9.1 一次查询的固定执行顺序
 
 ```text
-1. 接收问题与请求上下文：tenant、知识版本、提问时间、用户权限。
+1. 接收问题与请求上下文：已验证的 tenant、知识版本、提问时间、Principal 权限。
 2. 调用问题解析模型，获得候选 QueryFact；不产生诊断结论。
 3. 用 SKOS 别名和已批准映射规范化 QueryFact；未批准映射不参与匹配。
 4. 用 SHACL/Pydantic 校验字段类型、版本格式、枚举值和引用概念状态。
@@ -829,7 +860,14 @@ POST /v1/reasoning/runs/{runId}/facts
     "actions": ["ReuploadParkTjsSceneFile"],
     "steps": [{"order": 1, "action": "ReuploadParkTjsSceneFile"}]
   },
-  "evidence": ["FAQ-row-6428"],
+  "evidenceBindings": [
+    {"target": "when.all[0]", "evidenceRefs": ["EV-6428-source-version"]},
+    {"target": "when.all[1]", "evidenceRefs": ["EV-6428-target-version"]},
+    {"target": "when.all[2]", "evidenceRefs": ["EV-6428-symptom"]},
+    {"target": "then.diagnoses[0]", "evidenceRefs": ["EV-6428-cause"]},
+    {"target": "then.actions[0]", "evidenceRefs": ["EV-6428-action"]},
+    {"target": "then.steps[0]", "evidenceRefs": ["EV-6428-action"]}
+  ],
   "review": {"reviewer": "support-owner", "reviewedAt": "2026-08-20T09:00:00+08:00"}
 }
 ```
@@ -849,6 +887,16 @@ POC 只允许 `when.all`，不允许模型直接发布任意嵌套布尔表达�
 | `boolean` | `=` | `hasAlarmEvent = true` |
 
 版本比较不能用字符串字典序。发布器将版本 `4.2.3` 解析为数字元组 `(4,2,3)`；无法规范化的版本号被拒绝发布或显式标为 `versionType=opaque`，此时只允许 `=` 比较。
+
+发布器必须按下表生成类型化关系；表外组合一律拒绝发布。`true` 才能计入已命中条件，`false` 和 `unknown` 都不能命中；字段缺失永远产生 `unknown`，绝不能把缺失解释成 `!=` 成立。
+
+| valueType / operator | 输入关系与判定 | 边界及证明 |
+| --- | --- | --- |
+| `concept` / `string`: `=`、`!=` | `query_symbol_fact(run, field, value)`、`rule_symbol_condition(rule, field, operator, value)` | `=` 为值相等；`!=` 只在该字段存在且值不等时为 true；证明记录实际输入值与比较操作符 |
+| `concept` / `string`: `in` | `rule_symbol_member(rule, condition, member)` | 候选值与任一 member 相等即 true；空集合非法 |
+| `version`: `=`、`!=`、比较 | `query_version_fact(run, field, major, minor, patch)` 与类型化下界/上界关系 | 数字元组逐段比较；`opaque` 版本仅允许 `=`；证明保存解析后的元组与原字串 |
+| `number` / `duration`: `=`、`!=`、比较 | `query_number_fact` / `query_duration_seconds_fact` 与条件值关系 | 数值采用十进制定点；duration 统一换算秒；`between` 是闭区间 `[lower, upper]`，且 `lower <= upper` |
+| `boolean`: `=` | `query_boolean_fact(run, field, value)` | 仅 `true` / `false`；字段不存在为 unknown，不得以默认 false 匹配 |
 
 ### 9.4 Rule DSL 到 Souffle 的编译
 
@@ -895,7 +943,7 @@ candidate_action(run, rule, action, priority, specificity) :-
     rule_action(rule, action).
 ```
 
-上例展示等值条件。`run` 必须贯穿所有中间关系，保证同一 Datalog 进程批量处理时不同客户问题不会共享事实。`number`、`duration` 和 `version` 条件编译为单独的类型化关系，例如 `query_version_fact`、`rule_version_lower_bound` 和 `query_number_fact`，由发布器在生成输入时完成元组解析和比较，避免把数值/版本降级为字符串。
+上例只展示等值条件。每一种表中允许的操作符都必须生成独立的 `condition_truth(run, rule, condition, truth)` 关系，再由 `truth=true` 进入 `matched_condition`；不得把不同类型降级成字符串比较。`run` 必须贯穿所有中间关系，保证同一 Datalog 进程批量处理时不同客户问题不会共享事实。proofGraph 的条件节点同时保存 `operator`、归一化输入值、比较值、`truth` 和关联 `evidenceBindings`，因此前端能解释“为什么命中”以及“为什么未命中/未知”。
 
 规则是否命中使用“条件数 = 匹配条件数”的全匹配语义：有三个 `when.all` 条件，就必须恰好证明三个条件都满足。不能因为只匹配到“地面模型不显示”就自动推荐 4.2.2 → 4.2.3 的迁移方案。
 
@@ -1063,16 +1111,19 @@ EvidenceNode(FAQ-row-6428)
 | `GET /v1/candidates` | 列出候选单元 | `status`、`unitId`、分页、候选摘要 |
 | `GET /v1/candidates/{unitId}` | 加载原文与抽取结果 | `DocumentUnit`、`EvidenceSpan`、候选 JSON、审核差异 |
 | `PATCH /v1/candidates/{unitId}` | 保存审核编辑 | `expectedRevision`、候选/正式对象、审核理由 |
-| `POST /v1/reviews/{id}/decision` | 批准或拒绝 | `decision`、`reviewer`、`reason`、`expectedRevision` |
+| `POST /v1/reviews/{id}/decision` | 批准或拒绝 | `decision`、`reason`、`expectedRevision`；审核人从 Principal 派生 |
 | `GET/PATCH /v1/mappings/{id}` | 审核跨本体映射 | 映射依据、影响规则、状态与生效期 |
 | `POST /v1/knowledge-versions` | 创建并预检暂存版本 | 选定批准对象、manifest、校验结果 |
-| `POST /v1/knowledge-versions/{version}/publish` | 原子发布版本 | `expectedStatus=staged`、发布结果/失败原因 |
+| `POST /v1/knowledge-versions/{version}/publish` | 提交可恢复发布 | `expectedStatus=staged`、`Idempotency-Key`、`202 operationId` |
+| `GET /v1/operations/{operationId}` | 查询发布/预检操作 | `status`、阶段、manifest、失败原因 |
 | `POST /v1/reasoning/diagnose` | 发起一次诊断 | 问题、上下文、knowledgeVersion、`QueryRun` |
 | `POST /v1/reasoning/runs/{runId}/facts` | 补答并续跑 | `expectedRunRevision`、补答事实、新 revision |
 | `GET /v1/reasoning/runs/{runId}` | 查询回放与证明图 | QueryFact、规则、proofGraph、evidence、manifest |
 | `GET /v1/evidence/{evidenceId}` | 定位原文证据 | quote、上下文、DocumentUnit location、权限脱敏结果 |
 
 `GET /v1/reasoning/runs/{runId}` 的 `proofGraph` 必须提供节点 `kind`、`conceptType`、`value/ruleId` 以及边 `predicate`，使前端可同时渲染二维证明链和三维本体视图，不能从自然语言回答反向解析关系。
+
+所有会产生新状态的 `POST` 必须携带 `Idempotency-Key`。服务端以 `(tenant_id, principal_id, route, idempotency_key)` 唯一约束保存 request hash 与完整响应：同一 hash 的重试返回原响应；同一 key 但不同 hash 返回 `409 idempotency_key_reused`。`PATCH` 和审核/补答接口仍必须同时使用 `expectedRevision` 或 `expectedRunRevision`，过期时返回 `409 stale_revision` 或 `409 stale_run_revision`。统一错误载荷为 `{"code":"...","message":"...","requestId":"...","details":{}}`；`400` 用于语法或 Schema 错误，`403` 用于操作权限不足，`404` 用于无可见资源，`409` 用于幂等键或版本冲突，`422` 用于术语/规则/发布预检失败。发布及预检可耗时，固定返回 `202` 和 operation 资源；其他写操作在本地 POC 同步完成后返回最终资源或上述受控错误。
 
 ### 9.9.2 问答页的本体证明视图
 
