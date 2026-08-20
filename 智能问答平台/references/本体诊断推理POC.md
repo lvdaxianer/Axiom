@@ -108,6 +108,7 @@ flowchart LR
   "concepts": [],
   "facts": [],
   "rules": [],
+  "candidateMappings": [],
   "knowledgeGaps": [],
   "status": "candidate"
 }
@@ -131,6 +132,7 @@ flowchart LR
   },
   "modality": "recommend",
   "priority": 80,
+  "sourceQuote": "3.5.4版本地图摆放的点位摆放中摆点有问题",
   "evidence": ["FAQ-row-2579"]
 }
 ```
@@ -143,6 +145,7 @@ flowchart LR
   "symptom": "DixCannotStart",
   "missingFacts": ["productVersion", "startupLog", "deploymentEnvironment"],
   "action": "EscalateToSupport",
+  "sourceQuote": "无",
   "evidence": ["FAQ-row-12546"]
 }
 ```
@@ -510,7 +513,314 @@ flowchart TD
 
 审核人必须能看到原文、抽取结构、置信度、候选影响范围和预期推理路径。审核不是只点击“通过”，还可以编辑规范概念、条件、动作、优先级、生效期和证据。
 
-## 9. 推理验收问题
+## 9. 推理执行规范
+
+本节定义 POC 的确定性运行时。LLM 只在进入推理前把客户问题转为候选事实；一旦事实通过 Schema、术语和类型校验，根因、动作、冲突和缺失信息只能由已发布的规则、映射和事实推导。运行时不得让 LLM 临时增加规则或补全根因。
+
+### 9.1 一次查询的固定执行顺序
+
+```text
+1. 接收问题与请求上下文：tenant、知识版本、提问时间、用户权限。
+2. 调用问题解析模型，获得候选 QueryFact；不产生诊断结论。
+3. 用 SKOS 别名和已批准映射规范化 QueryFact；未批准映射不参与匹配。
+4. 用 SHACL/Pydantic 校验字段类型、版本格式、枚举值和引用概念状态。
+5. 装载指定知识版本下生效的事实、映射和规则，并编译为 Datalog 输入事实。
+6. Datalog 计算候选规则、缺失字段、诊断、动作和证明节点。
+7. 执行冲突消解；若存在同级冲突，输出 conflict，不输出唯一结论。
+8. 根据证明节点装配答案、追问、规则 ID、证据原文和知识版本。
+9. 保存不可变的 QueryRun，支持之后按同一版本回放。
+```
+
+“生效”必须同时满足：`status=approved`、当前时间在 `effectiveFrom/effectiveTo` 内、租户可见、所依赖的跨本体映射也已批准。`candidate`、`rejected`、`deprecated` 记录在任何步骤都不能进入步骤 5。
+
+### 9.2 运行时输入与标准化结果
+
+调用 `/v1/reasoning/diagnose` 时，客户端只提交问题和必要的上下文，不直接提交根因或动作：
+
+```json
+{
+  "tenantId": "demo",
+  "knowledgeVersion": "2026.01.0",
+  "askedAt": "2026-08-20T10:00:00+08:00",
+  "question": "4.2.2升级到4.2.3以后地面模型不显示，怎么处理？",
+  "context": {
+    "product": "ThingJS",
+    "environment": "customer"
+  }
+}
+```
+
+问题解析与术语标准化后，推理器接收的不是原句，而是以下不可变 `QueryFact` 集合：
+
+```json
+{
+  "runId": "run-001",
+  "facts": [
+    {"field": "sourceVersion", "operator": "=", "value": "4.2.2", "valueType": "version", "origin": "question"},
+    {"field": "targetVersion", "operator": "=", "value": "4.2.3", "valueType": "version", "origin": "question"},
+    {"field": "symptom", "operator": "=", "value": "GroundModelNotDisplayed", "valueType": "concept", "origin": "question"},
+    {"field": "product", "operator": "=", "value": "ThingJS", "valueType": "concept", "origin": "context"}
+  ]
+}
+```
+
+`origin` 只能是 `question`、`context`、`approved_mapping` 或 `derived_fact`。来自模型但未通过标准化的词保留在解析审计记录中，不能成为 `QueryFact`。
+
+### 9.3 Rule DSL 的完整执行语义
+
+每条已批准规则在发布前必须具备以下字段：
+
+```json
+{
+  "id": "R-SCENE-RESOURCE-001",
+  "version": 1,
+  "status": "approved",
+  "effectiveFrom": "2026-01-01T00:00:00+08:00",
+  "effectiveTo": null,
+  "priority": 80,
+  "when": {
+    "all": [
+      {"field": "sourceVersion", "operator": "=", "value": "4.2.2", "valueType": "version"},
+      {"field": "targetVersion", "operator": "=", "value": "4.2.3", "valueType": "version"},
+      {"field": "symptom", "operator": "=", "value": "GroundModelNotDisplayed", "valueType": "concept"}
+    ]
+  },
+  "then": {
+    "diagnoses": ["SceneResourceStateIncomplete"],
+    "actions": ["ReuploadParkTjsSceneFile"]
+  },
+  "evidence": ["FAQ-row-6428"],
+  "review": {"reviewer": "support-owner", "reviewedAt": "2026-08-20T09:00:00+08:00"}
+}
+```
+
+POC 只允许 `when.all`，不允许模型直接发布任意嵌套布尔表达式，也不实现 `when.any`。需要 OR 语义时，审核人将其拆成多条 `when.all` 规则并复用同一个诊断/动作；这样编译、测试和冲突分析都保持确定。
+
+发布校验还必须拒绝同一规则中的重复条件，例如两次出现完全相同的 `symptom = GroundModelNotDisplayed`。否则条件计数会失去“具体度”和“全匹配”的业务意义。
+
+支持的条件操作符及类型：
+
+| `valueType` | 允许操作符 | 示例 |
+| --- | --- | --- |
+| `concept` / `string` | `=`、`!=`、`in` | `symptom = GroundModelNotDisplayed` |
+| `version` | `=`、`!=`、`>=`、`>`、`<=`、`<` | `productVersion >= 4.2.3` |
+| `number` | `=`、`!=`、`>=`、`>`、`<=`、`<`、`between` | `fileSizeMb > 3` |
+| `duration` | `>=`、`>`、`<=`、`<` | `runningHours > 8` |
+| `boolean` | `=` | `hasAlarmEvent = true` |
+
+版本比较不能用字符串字典序。发布器将版本 `4.2.3` 解析为数字元组 `(4,2,3)`；无法规范化的版本号被拒绝发布或显式标为 `versionType=opaque`，此时只允许 `=` 比较。
+
+### 9.4 Rule DSL 到 Souffle 的编译
+
+发布器对每个知识版本生成一组只读 Datalog 输入关系。以下是上述规则的简化编译产物；实际文件由发布器生成，人工不直接编辑。
+
+```souffle
+.decl query_fact(run:symbol, field:symbol, value:symbol)
+.decl active_rule(rule:symbol, priority:number, specificity:number)
+.decl rule_condition(rule:symbol, field:symbol, value:symbol)
+.decl rule_diagnosis(rule:symbol, cause:symbol)
+.decl rule_action(rule:symbol, action:symbol)
+.decl rule_evidence(rule:symbol, evidence:symbol)
+
+.input query_fact
+.input active_rule
+.input rule_condition
+.input rule_diagnosis
+.input rule_action
+.input rule_evidence
+
+.decl matched_condition(run:symbol, rule:symbol, field:symbol, value:symbol)
+matched_condition(run, rule, field, value) :-
+    rule_condition(rule, field, value),
+    query_fact(run, field, value).
+
+.decl matched_count(run:symbol, rule:symbol, count:number)
+matched_count(run, rule, count : { matched_condition(run, rule, _, _) }) :-
+    query_fact(run, _, _),
+    active_rule(rule, _, _).
+
+.decl candidate_rule(run:symbol, rule:symbol, priority:number, specificity:number)
+candidate_rule(run, rule, priority, specificity) :-
+    active_rule(rule, priority, specificity),
+    matched_count(run, rule, specificity).
+
+.decl candidate_diagnosis(run:symbol, rule:symbol, cause:symbol, priority:number, specificity:number)
+candidate_diagnosis(run, rule, cause, priority, specificity) :-
+    candidate_rule(run, rule, priority, specificity),
+    rule_diagnosis(rule, cause).
+
+.decl candidate_action(run:symbol, rule:symbol, action:symbol, priority:number, specificity:number)
+candidate_action(run, rule, action, priority, specificity) :-
+    candidate_rule(run, rule, priority, specificity),
+    rule_action(rule, action).
+```
+
+上例展示等值条件。`run` 必须贯穿所有中间关系，保证同一 Datalog 进程批量处理时不同客户问题不会共享事实。`number`、`duration` 和 `version` 条件编译为单独的类型化关系，例如 `query_version_fact`、`rule_version_lower_bound` 和 `query_number_fact`，由发布器在生成输入时完成元组解析和比较，避免把数值/版本降级为字符串。
+
+规则是否命中使用“条件数 = 匹配条件数”的全匹配语义：有三个 `when.all` 条件，就必须恰好证明三个条件都满足。不能因为只匹配到“地面模型不显示”就自动推荐 4.2.2 → 4.2.3 的迁移方案。
+
+### 9.5 跨本体事实如何参与推理
+
+本体图谱只把已批准的桥接关系导出为 `derived_fact`。例如已批准的关系与规则：
+
+```text
+User_A102 correspondsTo Employee_E10086
+Employee_E10086 worksFor Department_Finance
+Department_Finance mapsTo CostCenter_Finance
+Reimbursement_9001 submittedBy User_A102
+```
+
+编译器可以安全推导：
+
+```souffle
+.decl submits(reimbursement:symbol, user:symbol)
+.decl corresponds_to(user:symbol, employee:symbol)
+.decl works_for(employee:symbol, department:symbol)
+.decl maps_to_cost_center(department:symbol, costCenter:symbol)
+.decl reimbursement_cost_center(reimbursement:symbol, costCenter:symbol)
+
+reimbursement_cost_center(reimbursement, costCenter) :-
+    submits(reimbursement, user),
+    corresponds_to(user, employee),
+    works_for(employee, department),
+    maps_to_cost_center(department, costCenter).
+```
+
+如果 `correspondsTo` 仍是 `candidate`，上述关系不导出，推理只能返回“缺少已批准的身份映射”，不能擅自把用户和员工视为同一实体。
+
+### 9.6 具体度、优先级与冲突消解
+
+同一现象可能有通用规则和版本特定规则。排名元组固定为：
+
+```text
+rank = (specificity, priority, ruleVersion)
+```
+
+- `specificity`：已命中且经过审核的 `when.all` 条件数；
+- `priority`：业务审核人设定的 0-100 整数，数值越大优先级越高；
+- `ruleVersion`：同一 `ruleId` 的较新批准版本优先。
+
+规则先按生效期筛选，再按 `rank` 降序排序。只有最高 rank 的所有规则得出相同诊断/动作时，系统输出唯一结论；若最高 rank 的规则给出不同诊断或互斥动作，输出 `conflict`：
+
+```json
+{
+  "status": "conflict",
+  "conflictingRules": ["R-A", "R-B"],
+  "missingFacts": [],
+  "nextAction": "human_review",
+  "evidence": ["FAQ-row-6428", "FAQ-row-8805"]
+}
+```
+
+禁止使用“随机取第一条规则”“让 LLM 在冲突中挑一个更像的答案”作为消解策略。
+
+### 9.7 缺失事实、显式否定和未知
+
+推理器采用三值结果，而不是把缺失当作 `false`：
+
+```text
+true       已有批准事实证明条件成立
+false      已有批准事实明确证明条件不成立
+unknown    没有足够的已批准事实
+```
+
+例如提问“地面模型不显示怎么办？”只命中 `symptom`，但缺少 `sourceVersion` 和 `targetVersion`。系统应计算“部分匹配的候选规则”并输出：
+
+```json
+{
+  "status": "need_more_information",
+  "questions": [
+    "问题出现前的来源版本是什么？",
+    "当前目标环境版本是什么？"
+  ],
+  "candidateRules": ["R-SCENE-RESOURCE-001"],
+  "reasoningPath": [
+    "symptom=GroundModelNotDisplayed matched",
+    "sourceVersion is unknown",
+    "targetVersion is unknown"
+  ]
+}
+```
+
+显式否定必须作为独立事实保存，如 `isMigrated=false`；缺失 `isMigrated` 不能等价于 `false`。规则中使用否定条件时，必须要求明确负面事实，或在审核时显式声明可以采用封闭世界假设的有限枚举字段。
+
+### 9.8 推理轨迹与回放
+
+每次运行写入不可变 `QueryRun`，至少保存：
+
+```text
+runId
+input question and context
+question-parser model and promptVersion
+normalized QueryFact set
+knowledgeVersion
+approved mapping version set
+compiled Datalog program checksum
+matched / rejected / partial rules
+rank and conflict result
+proof nodes and evidence IDs
+final response payload
+```
+
+证明节点采用有向无环图，而不是只有一段自然语言：
+
+```text
+FactNode(sourceVersion=4.2.2)
+FactNode(targetVersion=4.2.3)
+FactNode(symptom=GroundModelNotDisplayed)
+RuleNode(R-SCENE-RESOURCE-001)
+DiagnosisNode(SceneResourceStateIncomplete)
+ActionNode(ReuploadParkTjsSceneFile)
+EvidenceNode(FAQ-row-6428)
+```
+
+边表示 `supports`、`matches`、`derives` 或 `recommends`。前端用 React Flow 按此图渲染，用户可以从动作反查规则、输入事实和 FAQ 原文。
+
+### 9.9 推理 API 输出契约
+
+```json
+{
+  "runId": "run-001",
+  "status": "resolved",
+  "knowledgeVersion": "2026.01.0",
+  "diagnoses": [
+    {"concept": "SceneResourceStateIncomplete", "ruleId": "R-SCENE-RESOURCE-001"}
+  ],
+  "actions": [
+    {"concept": "ReuploadParkTjsSceneFile", "order": 1, "ruleId": "R-SCENE-RESOURCE-001"}
+  ],
+  "missingFacts": [],
+  "conflicts": [],
+  "proofGraph": {
+    "nodes": ["FactNode:sourceVersion", "FactNode:targetVersion", "FactNode:symptom", "RuleNode:R-SCENE-RESOURCE-001", "ActionNode:ReuploadParkTjsSceneFile"],
+    "edges": ["sourceVersion->rule", "targetVersion->rule", "symptom->rule", "rule->action"]
+  },
+  "evidence": [
+    {"id": "FAQ-row-6428", "quote": "重新上传园区tjs场景文件后问题消失了"}
+  ]
+}
+```
+
+`status` 只能是 `resolved`、`need_more_information`、`conflict`、`no_approved_rule` 或 `authorization_denied`。Hermes 只能基于该结构组织自然语言，不能添加新的诊断、动作或未返回的证据。
+
+### 9.10 推理测试矩阵
+
+每条已批准规则都必须生成至少以下测试：
+
+| 测试 | 输入 | 期望 |
+| --- | --- | --- |
+| 正例 | 全部 `when.all` 条件 | 命中规则、输出诊断/动作和证据 |
+| 单条件缺失 | 缺少任一必填条件 | `need_more_information` 与缺失字段 |
+| 反例 | 明确不满足一个条件 | 不命中该规则 |
+| 版本边界 | 等于、低于、高于版本阈值 | 按版本比较语义选择规则 |
+| 同义词 | 批准别名代替首选名称 | 规范化后命中同一规则 |
+| 未批准映射 | 仅有 candidate 跨本体映射 | 不产生派生事实 |
+| 冲突 | 同 rank 输出不同结论 | `conflict`，不输出唯一动作 |
+| 回放 | 固定 `QueryRun` | 重放得到相同规则、轨迹和输出 |
+
+测试集不得只验证最终中文回答；必须断言 `normalized QueryFact`、`matchedRules`、`missingFacts`、`proofGraph` 和 `evidence`。
+
+## 10. 推理验收问题
 
 POC 建议准备 20 条人工标准问题：
 
@@ -548,7 +858,7 @@ POC 建议准备 20 条人工标准问题：
 
 每条问题的标准答案应由业务人员预先填写“事实、规则、预期动作和证据”，不要直接用模型回答作为金标准。
 
-## 10. POC 验收指标
+## 11. POC 验收指标
 
 - 30 条样本全部完成抽取状态分类；
 - 至少 15 条样本形成经审核的正式事实或规则；
@@ -558,7 +868,7 @@ POC 建议准备 20 条人工标准问题：
 - 未批准映射、冲突规则和过期规则不得无提示地产生唯一结论；
 - 更换 OpenAI-compatible 模型服务，只修改配置即可完成同一批测试。
 
-## 11. POC 交付物
+## 12. POC 交付物
 
 ```text
 抽样数据 manifest
@@ -572,7 +882,7 @@ React 审核/推理工作台
 POC 测试报告
 ```
 
-## 12. 实施里程碑
+## 13. 实施里程碑
 
 1. 第 1 周：导入 30 条样本，完成抽取 Schema、提示词和 JSON 校验。
 2. 第 2 周：完成概念标准化、审核状态、证据绑定和规则 DSL。
