@@ -92,6 +92,63 @@ flowchart LR
     M --> N[React 推理结果页]
 ```
 
+### 3.1 POC monorepo 目录与所有权
+
+POC 使用一个仓库和一个发布版本，不把每个本体或推理阶段拆成独立部署项目。目录按运行职责分层，`ontology/` 下的文件是逻辑模块而非独立项目：
+
+```text
+ontology-reasoning-poc/
+├── backend/
+│   ├── app/
+│   │   ├── api/                 # FastAPI 路由、鉴权与请求/响应模型
+│   │   ├── domain/              # 领域对象、状态机和不可变版本约束
+│   │   ├── services/            # 抽取、审核、发布、推理、续跑、回放用例
+│   │   ├── repositories/        # PostgreSQL、GraphDB、产物存储唯一访问入口
+│   │   ├── llm/                 # OpenAI-compatible 客户端、提示词与模型能力探测
+│   │   ├── compiler/            # RDF 导出、Rule DSL -> Datalog、manifest 生成
+│   │   └── validators/          # Pydantic、SHACL、证据、版本和发布校验
+│   └── tests/                   # 单元、集成、规则、回放和 API 契约测试
+├── frontend/
+│   └── src/
+│       ├── pages/               # 候选、规则、映射、发布、推理问答页面
+│       ├── features/            # 按资源状态组织的 API、store、业务组件
+│       └── components/          # 通用表单、证据定位、二维/三维证明图组件
+├── ontology/
+│   ├── src/                     # Git 管理的 Protégé/TTL 源文件
+│   │   ├── support.ttl          # 故障、症状、根因、动作、证据
+│   │   ├── product.ttl          # 产品、版本、组件、资源
+│   │   ├── deployment.ttl       # 环境、迁移、配置
+│   │   └── integration.ttl      # 跨本体映射与桥接关系
+│   ├── shapes/                  # SHACL 约束
+│   └── published/               # 发布器生成物，按 knowledgeVersion 只读保存
+├── rules/
+│   ├── src/                     # 已审核 Rule DSL，例如 R-SCENE-RESOURCE-001.v1.json
+│   └── generated/               # Datalog 程序、输入关系和编译报告
+├── fixtures/                    # 30 条样本、DocumentUnit、验收问题和标准答案
+├── infra/                       # Docker Compose、GraphDB 初始化、数据库迁移
+└── docs/                        # 架构决策、接口和测试报告
+```
+
+依赖只能向内收敛：`api -> services -> domain`，`services -> repositories/compiler/validators/llm`；`domain` 不依赖 FastAPI、数据库客户端或 GraphDB SDK。`repositories/` 是 GraphDB、PostgreSQL 与文件产物的唯一访问入口。`llm/` 只能生成候选知识和候选 `QueryFact`，不得调用发布、写图或产生正式推理结论。前端的二维/三维图只消费 `proofGraph.nodes/edges`，禁止从自然语言答案反向解析关系。
+
+本体源文件由 Protégé 编辑后提交 Git；GraphDB 只能加载发布器基于 `ontology/src/`、`rules/src/` 与批准知识生成的 `ontology/published/<knowledgeVersion>/` 产物。文件命名分别采用 `backend/app/services/publication_service.py`、`frontend/src/features/reasoning/api.ts`、`rules/src/R-SCENE-RESOURCE-001.v1.json` 这类“职责/对象.版本”形式。
+
+### 3.2 服务与 API 所有权
+
+每个写操作只能由一个应用服务拥有，API 路由不得跨服务直接更新表或调用 GraphDB：
+
+| 服务 | 唯一职责 | 允许调用的 API |
+| --- | --- | --- |
+| `ExtractionService` | `DocumentUnit` 抽取、候选知识和 EvidenceSpan 生成 | 候选导入、重试、查询 |
+| `ReviewService` | 候选编辑、审核决定、差异和乐观锁处理 | 候选读取、编辑、批准、拒绝 |
+| `MappingReviewService` | 跨本体映射候选与影响规则审核 | 映射读取、编辑、批准、拒绝 |
+| `PublicationService` | 冻结版本、SHACL/规则预检、manifest、原子发布 | 创建暂存版本、预检、发布、废弃 |
+| `ReasoningService` | 客户问题解析、规则执行、冲突与缺失信息计算 | `/v1/reasoning/diagnose` |
+| `RunContinuationService` | 补答校验、QueryRun revision 与重新推理 | `/v1/reasoning/runs/{runId}/facts` |
+| `ReplayService` | 读取不可变运行记录、证明图和原文回链 | QueryRun、proofGraph、evidence 查询 |
+
+前端页面按资源状态拥有自己的 `features/<resource>/api.ts` 和 store：候选、规则、映射、版本和推理问答不得共用可写的“万能知识 store”。写请求一律提交 `expectedRevision` 或 `expectedStatus`；服务端在事务内校验并返回 `409`，前端必须重新加载后才允许再次提交。
+
 ## 4. POC 数据结构
 
 ### 4.1 输入文本单元
@@ -170,13 +227,73 @@ flowchart LR
   "missingFacts": ["productVersion", "startupLog", "deploymentEnvironment"],
   "action": "EscalateToSupport",
   "sourceQuote": "无",
-  "evidence": ["FAQ-row-12546"]
+  "evidenceRefs": ["EV-12546-gap"]
 }
 ```
+
+### 4.5 PostgreSQL 持久化模型
+
+PostgreSQL 保存可查询的状态、关联、审核与审计；GraphDB 只保存已发布 RDF；原文、TTL、Datalog 和 manifest 的大对象保存为版本化产物。允许变化的抽取载荷留在 JSONB，但不得把状态、版本、审核人与关联关系埋入 JSONB。
+
+除版本字符串外，主键使用 UUID；时间使用带时区的 `TIMESTAMPTZ`；短枚举使用 PostgreSQL enum 或受控 `VARCHAR`；语义载荷、位置和 manifest 使用 `JSONB`；原文使用 `TEXT`；哈希保存完整 `sha256:<hex>` 字符串。`revision` 和 `run_revision` 使用正整数；每个可编辑资源都有 `updated_at` 与 `updated_by`，每次审核决定都保留独立审计行。
+
+| 表 | 主键与关键列 | 数据责任 |
+| --- | --- | --- |
+| `document_unit` | `id`、`document_id`、`kind`、`title_path`、`text`、`location_json`、`content_hash` | FAQ、标题、段落、表格、代码块等统一输入 |
+| `evidence_span` | `id`、`unit_id`、`quote`、`char_start`、`char_end`、`content_hash` | 所有知识对象回链的原子证据 |
+| `knowledge_item` | `id`、`kind`、`status`、`revision`、`payload_jsonb`、`created_by` | `concept`、`fact`、`rule`、`mapping`、`knowledge_gap` |
+| `knowledge_evidence` | `knowledge_item_id`、`target_path`、`evidence_id` | 条件、诊断、动作、步骤与证据的精确绑定 |
+| `review_decision` | `id`、`item_id`、`decision`、`before_jsonb`、`after_jsonb`、`reason`、`reviewer` | 人工审核及前后差异 |
+| `knowledge_version` | `version`、`status`、`manifest_jsonb`、`graph_checksum`、`rule_checksum` | 暂存、发布、失败、废弃的版本状态 |
+| `version_item` | `knowledge_version`、`knowledge_item_id`、`item_revision` | 将批准对象冻结到发布快照 |
+| `query_run` | `id`、`parent_run_id`、`revision`、`input_jsonb`、`facts_jsonb`、`manifest_jsonb`、`result_jsonb` | 问题、补答、推理和回放 |
+| `proof_node` / `proof_edge` | `run_id`、节点/边 ID、`kind`、`predicate`、`payload_jsonb` | 二维和三维证明图的直接数据源 |
+
+强制约束如下：
+
+```text
+document_unit(document_id, location_json, content_hash) 唯一；
+evidence_span 的 [char_start, char_end) 必须落在对应 unit.text 内，quote 必须逐字相等；
+knowledge_item 的 (id, revision) 唯一，已审核 revision 不可原地更新；
+knowledge_evidence 的 (knowledge_item_id, target_path, evidence_id) 唯一；
+version_item 只能引用 status=approved 的指定 revision；
+knowledge_version.status=published 后，manifest_jsonb、checksum 和 version_item 不可修改；
+query_run 的 revision 只能新增，补答通过 parent_run_id 建立时间线；
+proof_node/proof_edge 必须引用同一个 query_run revision，edge 的两端节点必须存在。
+```
+
+`knowledge_item.payload_jsonb` 的规则载荷固定为：
+
+```json
+{
+  "when": {"all": []},
+  "then": {
+    "diagnoses": [],
+    "actions": [],
+    "steps": []
+  },
+  "constraints": [],
+  "evidenceBindings": []
+}
+```
+
+`status`、`revision`、`kind`、`created_by`、审批时间、生效期、正式概念 ID 和证据关联必须使用列或关联表，不能只写入 `payload_jsonb`。数据库迁移归属 `infra/migrations/`；示例数据归属 `fixtures/`，不得与生产式发布产物混放。
 
 ## 5. 可直接使用的抽取提示词
 
 以下提示词用于“文档/FAQ 片段 → 候选本体知识”。实际调用时将 `{{source_text}}`、`{{source_meta}}` 和 `{{ontology_context}}` 替换为请求内容。提示词中的 JSON Schema 由服务端再次校验。
+
+### 5.0 模型接入配置
+
+POC 的抽取、客户问题解析和跨本体映射候选均通过 OpenAI-compatible API 调用同一个模型服务：
+
+```text
+base_url=https://token.uino.com/v1
+model=deepseek-v4-flash
+api_key=${KNOWLEDGE_ANSWER_API_KEY}
+```
+
+密钥只能从运行环境变量 `KNOWLEDGE_ANSWER_API_KEY` 读取。禁止将密钥写入 Git、`.env.example`、Docker Compose、前端构建变量、日志、异常消息或 `QueryRun` 审计载荷；前端不得直接调用该模型端点。`backend/app/llm/` 读取该变量并设置连接、读取和整体调用超时，运行配置中只记录 `base_url`、模型名、提示词版本和非敏感能力探测结果。
 
 ### 5.1 系统提示词
 
