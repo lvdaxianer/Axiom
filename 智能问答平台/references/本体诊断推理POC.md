@@ -75,13 +75,14 @@ POC 聚焦技术支持知识库。当前样本中包含孪生场景、版本迁�
 
 ```mermaid
 flowchart LR
-    A[Excel 30条样本] --> B[样本导入器]
+    A[FAQ/完整文档文本] --> B[DocumentUnit 生成器]
     B --> C[抽取 API]
     C --> D[候选知识 JSON]
     D --> E[React 审核台]
-    E --> F[GraphDB]
-    E --> G[PostgreSQL 审核库]
-    E --> H[规则发布器]
+    E --> R[发布协调器]
+    R --> F[GraphDB 命名图]
+    R --> G[PostgreSQL 审核库]
+    R --> H[规则发布器]
     H --> I[Soufflé Datalog]
     J[客户问题] --> K[问题解析 API]
     K --> I
@@ -93,28 +94,40 @@ flowchart LR
 
 ## 4. POC 数据结构
 
-### 4.1 抽取中间结构
+### 4.1 输入文本单元
+
+抽取 API 只接收 `DocumentUnit`。FAQ 导入器把 A/G 列转换为一个 `kind=faq` 的单元；完整文档由分段器输出标题路径和稳定位置。
 
 ```json
 {
   "unitId": "FAQ-row-2579",
-  "source": {
-    "file": "Case知识库_7字段.xlsx",
-    "sheet": "Case知识库",
-    "row": 2579,
-    "question": "地图场景点击地图点不生效",
-    "answer": "原因：客户环境是3.5.4版本的……"
-  },
+  "documentId": "Case知识库_7字段.xlsx",
+  "kind": "faq",
+  "titlePath": ["技术支持 FAQ"],
+  "text": "问题：地图场景点击地图点不生效\n答案：原因：客户环境是3.5.4版本的……",
+  "contextBefore": null,
+  "contextAfter": null,
+  "location": {"sheet": "Case知识库", "row": 2579, "charStart": 0, "charEnd": 42}
+}
+```
+
+### 4.2 抽取中间结构
+
+```json
+{
+  "unitId": "FAQ-row-2579",
+  "source": {"documentUnitRef": "FAQ-row-2579"},
   "concepts": [],
   "facts": [],
   "rules": [],
   "candidateMappings": [],
   "knowledgeGaps": [],
+  "evidenceSpans": [],
   "status": "candidate"
 }
 ```
 
-### 4.2 规则结构
+### 4.3 候选/发布规则结构
 
 ```json
 {
@@ -127,17 +140,28 @@ flowchart LR
     ]
   },
   "then": {
-    "cause": "MapPointPlacementDefect",
-    "actions": ["ManuallyAddMapPoint", "UpgradeToVersion:3.5.5"]
+    "diagnoses": ["MapPointPlacementDefect"],
+    "actions": ["ManuallyAddMapPoint", "UpgradeToVersion:3.5.5"],
+    "steps": [
+      {"order": 1, "action": "ManuallyAddMapPoint"},
+      {"order": 2, "action": "UpgradeToVersion:3.5.5"}
+    ]
   },
   "modality": "recommend",
   "priority": 80,
-  "sourceQuote": "3.5.4版本地图摆放的点位摆放中摆点有问题",
-  "evidence": ["FAQ-row-2579"]
+  "evidenceBindings": [
+    {"target": "when.all[0]", "evidenceRefs": ["EV-2579-question"]},
+    {"target": "when.all[1]", "evidenceRefs": ["EV-2579-answer"]},
+    {"target": "then.diagnoses[0]", "evidenceRefs": ["EV-2579-answer"]},
+    {"target": "then.steps[0]", "evidenceRefs": ["EV-2579-solution-1"]},
+    {"target": "then.steps[1]", "evidenceRefs": ["EV-2579-solution-2"]}
+  ]
 }
 ```
 
-### 4.3 知识缺口结构
+候选与批准规则使用同一结构；只有 `status`、正式概念 ID、审核信息、生效期和发布版本不同。`steps` 是有序操作的唯一正式表达，`actions` 仅为便于检索的去重索引，发布器必须验证两者一致。
+
+### 4.4 知识缺口结构
 
 ```json
 {
@@ -161,14 +185,14 @@ flowchart LR
 
 严格遵守以下边界：
 1. 只抽取原文明确表达或可由原文直接组合得到的内容，不补写原文没有的根因、版本、日志、参数或解决方案。
-2. 每个 fact、rule、step 必须绑定 sourceQuote，sourceQuote 必须是输入文本中的连续短片段。
+2. 每个 fact、rule 条件、诊断、动作和 step 必须绑定 `evidenceRefs`；其指向的 `EvidenceSpan.quote` 必须是输入单元 `text` 中的连续短片段。
 3. 若答案包含“可能、通常、建议、参考、暂时、未知”等不确定词，保留 modality，不得改成确定事实。
 4. 若答案只写“无”“未知”“场景问题”或信息不足，输出 knowledgeGaps，不生成正式诊断规则。
 5. 版本、数字、单位、文件名、API 名称和配置项必须原样保留，并额外给出规范化值。
 6. “场景包、环境包、TJS 文件”等相似词不能自动判定为同一概念；输出 candidateMapping，等待审核。
 7. “重新上传”“升级版本”“修改配置”“清理缓存”等是 RemediationAction，不是 Cause。
 8. “原因是……”才可能抽取 Cause；如果原文只给出操作，不要反推原因。
-9. 多步骤方案必须保留顺序；替代方案用 alternatives 表达。
+9. 多步骤方案必须输出 `then.steps`，从 1 连续编号；替代方案用 `alternatives` 表达，不得混入同一条步骤序列。
 10. 如果一个答案同时包含现象、排查、原因和方案，分别输出，不要把整段答案塞入一个字段。
 11. 不要输出 Markdown，不要输出 JSON 之外的解释。
 
@@ -213,19 +237,28 @@ dependsOn, causedBy, fixedBy, appliesTo, precedes。
 期望：
 {
   "facts": [
-    {"field":"productVersion","value":"3.5.4","sourceQuote":"客户环境是3.5.4版本"},
-    {"field":"symptom","value":"MapPointClickIneffective","sourceQuote":"地图场景点击地图点不生效"}
+    {"field":"productVersion","value":"3.5.4","sourceQuote":"客户环境是3.5.4版本","evidenceRefs":["EV-2579-version"]},
+    {"field":"symptom","value":"MapPointClickIneffective","sourceQuote":"地图场景点击地图点不生效","evidenceRefs":["EV-2579-symptom"]}
   ],
   "rules": [
     {
-      "when":[
+      "when":{"all":[
         {"field":"productVersion","operator":"=","value":"3.5.4"},
         {"field":"symptom","operator":"=","value":"MapPointClickIneffective"}
-      ],
-      "then":{"cause":"MapPointPlacementDefect","actions":["ManuallyAddMapPoint","UpgradeToVersion:3.5.5"]},
-      "sourceQuote":"3.5.4版本地图摆放的点位摆放中摆点有问题"
+      ]},
+      "then":{"diagnoses":["MapPointPlacementDefect"],"actions":["ManuallyAddMapPoint","UpgradeToVersion:3.5.5"],"steps":[{"order":1,"action":"ManuallyAddMapPoint"},{"order":2,"action":"UpgradeToVersion:3.5.5"}]},
+      "evidenceBindings":[{"target":"when.all[0]","evidenceRefs":["EV-2579-version"]},{"target":"when.all[1]","evidenceRefs":["EV-2579-symptom"]},{"target":"then.diagnoses[0]","evidenceRefs":["EV-2579-cause"]},{"target":"then.steps[0]","evidenceRefs":["EV-2579-solution-1"]},{"target":"then.steps[1]","evidenceRefs":["EV-2579-solution-2"]}]
     }
   ],
+  "evidenceSpans":[
+    {"id":"EV-2579-version","quote":"客户环境是3.5.4版本"},
+    {"id":"EV-2579-symptom","quote":"地图场景点击地图点不生效"},
+    {"id":"EV-2579-cause","quote":"3.5.4版本地图摆放的点位摆放中摆点有问题"},
+    {"id":"EV-2579-solution-1","quote":"在孪生体管理中手动添加点位"},
+    {"id":"EV-2579-solution-2","quote":"升级到3.5.5版本"}
+  ],
+  "concepts": [],
+  "candidateMappings": [],
   "knowledgeGaps": [],
   "status":"candidate"
 }
@@ -238,24 +271,29 @@ dependsOn, causedBy, fixedBy, appliesTo, precedes。
 ```json
 {
   "type": "object",
-  "required": ["concepts", "facts", "rules", "candidateMappings", "knowledgeGaps", "status"],
+  "required": ["concepts", "facts", "rules", "candidateMappings", "knowledgeGaps", "evidenceSpans", "status"],
   "properties": {
     "concepts": {"type": "array", "items": {"type": "object"}},
-    "facts": {"type": "array", "items": {"type": "object", "required": ["field", "value", "sourceQuote"]}},
-    "rules": {"type": "array", "items": {"type": "object", "required": ["when", "then", "sourceQuote"]}},
-    "candidateMappings": {"type": "array", "items": {"type": "object", "required": ["sourceText", "candidateConcept", "possibleRelation", "requiresReview"]}},
-    "knowledgeGaps": {"type": "array", "items": {"type": "object", "required": ["type", "missingFacts", "sourceQuote"]}},
+    "facts": {"type": "array", "items": {"type": "object", "required": ["field", "value", "sourceQuote", "evidenceRefs"]}},
+    "rules": {"type": "array", "items": {"type": "object", "required": ["when", "then", "evidenceBindings"]}},
+    "candidateMappings": {"type": "array", "items": {"type": "object", "required": ["sourceText", "candidateConcept", "possibleRelation", "requiresReview", "evidenceRefs"]}},
+    "knowledgeGaps": {"type": "array", "items": {"type": "object", "required": ["type", "missingFacts", "sourceQuote", "evidenceRefs"]}},
+    "evidenceSpans": {"type": "array", "items": {"type": "object", "required": ["id", "quote"]}},
     "status": {"type": "string", "enum": ["candidate", "knowledge_gap", "no_extractable_rule"]}
   },
   "additionalProperties": false
 }
 ```
 
-服务端在 Schema 校验后还必须执行两类业务校验：
+服务端在 Schema 校验后还必须执行下列业务校验：
 
 ```text
-sourceQuote 必须逐字出现在来源文本中；
-rule.when 的每个条件和 rule.then 的每个根因/动作都必须有对应 sourceQuote。
+每个 `EvidenceSpan.quote` 必须逐字出现在对应 `DocumentUnit.text` 中，且 `charStart/charEnd` 与 quote 一致；
+`rule.when.all` 的每个条件、`then.diagnoses/actions/steps` 的每个元素必须各有至少一个 `evidenceBinding`；
+每个 candidateMapping 和 knowledgeGap 也必须有至少一个 `evidenceRefs`；
+每个 `evidenceBinding.target` 必须能定位到当前规则中的对象；
+`steps.order` 必须从 1 连续，且其 action 必须出现在 `then.actions`；
+抽取结构先通过 `CandidateKnowledge` 校验；审核保存前转换为同字段形状的 `ApprovedKnowledge`，禁止把 `when: []`、`then.cause` 等旧形状写入发布库。
 ```
 
 ### 5.4 抽取正例 2：多步骤排查 + 配对约束
@@ -268,16 +306,20 @@ rule.when 的每个条件和 rule.then 的每个根因/动作都必须有对应 
 期望：
 {
   "facts":[
-    {"field":"symptom","value":"AlarmLocationReturnsToBuildingLevel","sourceQuote":"自动退出到建筑层级"}
+    {"field":"symptom","value":"AlarmLocationReturnsToBuildingLevel","sourceQuote":"自动退出到建筑层级","evidenceRefs":["EV-2-symptom"]}
   ],
   "rules":[
     {
-      "when":[{"field":"event","operator":"=","value":"CancelAlarm"}],
-      "then":{"constraint":"CancelAlarmMustPairWithAlarm","actions":["UpdateConfiguration"]},
-      "sourceQuote":"取消告警事件必须和告警事件配对使用"
+      "when":{"all":[{"field":"event","operator":"=","value":"CancelAlarm"}]},
+      "then":{"diagnoses":[],"actions":["UpdateConfiguration"],"steps":[{"order":1,"action":"UpdateConfiguration"}]},
+      "constraints":["CancelAlarmMustPairWithAlarm"],
+      "evidenceBindings":[{"target":"when.all[0]","evidenceRefs":["EV-2-event"]},{"target":"constraints[0]","evidenceRefs":["EV-2-constraint"]},{"target":"then.steps[0]","evidenceRefs":["EV-2-action"]}]
     }
   ],
+  "concepts":[],
+  "candidateMappings":[],
   "knowledgeGaps": [],
+  "evidenceSpans":[{"id":"EV-2-symptom","quote":"自动退出到建筑层级"},{"id":"EV-2-event","quote":"取消告警事件"},{"id":"EV-2-constraint","quote":"取消告警事件必须和告警事件配对使用"},{"id":"EV-2-action","quote":"还需要改配置"}],
   "status":"candidate"
 }
 ```
@@ -292,22 +334,25 @@ rule.when 的每个条件和 rule.then 的每个根因/动作都必须有对应 
 期望：
 {
   "facts":[
-    {"field":"sourceVersion","value":"4.2.2","sourceQuote":"4.2.2环境包"},
-    {"field":"targetVersion","value":"4.2.3","sourceQuote":"迁移到4.2.3环境"},
-    {"field":"symptom","value":"GroundModelNotDisplayed","sourceQuote":"地面模型不显示"}
+    {"field":"sourceVersion","value":"4.2.2","sourceQuote":"4.2.2环境包","evidenceRefs":["EV-3-source"]},
+    {"field":"targetVersion","value":"4.2.3","sourceQuote":"迁移到4.2.3环境","evidenceRefs":["EV-3-target"]},
+    {"field":"symptom","value":"GroundModelNotDisplayed","sourceQuote":"地面模型不显示","evidenceRefs":["EV-3-symptom"]}
   ],
   "rules":[
     {
-      "when":[
+      "when":{"all":[
         {"field":"sourceVersion","operator":"=","value":"4.2.2"},
         {"field":"targetVersion","operator":"=","value":"4.2.3"},
         {"field":"symptom","operator":"=","value":"GroundModelNotDisplayed"}
-      ],
-      "then":{"actions":["ReuploadParkTjsSceneFile"]},
-      "sourceQuote":"重新上传园区tjs场景文件后问题消失了"
+      ]},
+      "then":{"diagnoses":[],"actions":["ReuploadParkTjsSceneFile"],"steps":[{"order":1,"action":"ReuploadParkTjsSceneFile"}]},
+      "evidenceBindings":[{"target":"when.all[0]","evidenceRefs":["EV-3-source"]},{"target":"when.all[1]","evidenceRefs":["EV-3-target"]},{"target":"when.all[2]","evidenceRefs":["EV-3-symptom"]},{"target":"then.steps[0]","evidenceRefs":["EV-3-action"]}]
     }
   ],
+  "concepts":[],
+  "candidateMappings":[],
   "knowledgeGaps": [],
+  "evidenceSpans":[{"id":"EV-3-source","quote":"4.2.2环境包"},{"id":"EV-3-target","quote":"迁移到4.2.3环境"},{"id":"EV-3-symptom","quote":"地面模型不显示"},{"id":"EV-3-action","quote":"重新上传园区tjs场景文件后问题消失了"}],
   "status":"candidate"
 }
 ```
@@ -322,17 +367,20 @@ rule.when 的每个条件和 rule.then 的每个根因/动作都必须有对应 
 期望：
 {
   "facts":[
-    {"field":"symptom","value":"CadConversionStuck","sourceQuote":"一直在转换中"},
-    {"field":"cause","value":"CadFileTooLarge","sourceQuote":"图纸太大了"}
+    {"field":"symptom","value":"CadConversionStuck","sourceQuote":"一直在转换中","evidenceRefs":["EV-4-symptom"]},
+    {"field":"cause","value":"CadFileTooLarge","sourceQuote":"图纸太大了","evidenceRefs":["EV-4-cause"]}
   ],
   "rules":[
     {
-      "when":[{"field":"symptom","operator":"=","value":"CadConversionStuck"}],
-      "then":{"actions":["SplitCadFileAndUploadSeparately"]},
-      "sourceQuote":"拆开图纸分开上传使用"
+      "when":{"all":[{"field":"symptom","operator":"=","value":"CadConversionStuck"}]},
+      "then":{"diagnoses":["CadFileTooLarge"],"actions":["SplitCadFileAndUploadSeparately"],"steps":[{"order":1,"action":"SplitCadFileAndUploadSeparately"}]},
+      "evidenceBindings":[{"target":"when.all[0]","evidenceRefs":["EV-4-symptom"]},{"target":"then.diagnoses[0]","evidenceRefs":["EV-4-cause"]},{"target":"then.steps[0]","evidenceRefs":["EV-4-action"]}]
     }
   ],
+  "concepts":[],
+  "candidateMappings":[],
   "knowledgeGaps": [],
+  "evidenceSpans":[{"id":"EV-4-symptom","quote":"一直在转换中"},{"id":"EV-4-cause","quote":"图纸太大了"},{"id":"EV-4-action","quote":"拆开图纸分开上传使用"}],
   "status":"candidate"
 }
 ```
@@ -353,12 +401,15 @@ rule.when 的每个条件和 rule.then 的每个根因/动作都必须有对应 
       "possibleRelation":"closeMatch",
       "targetConcept":"ScenePackage",
       "reason":"两个概念均用于场景迁移上下文，但原文未证明完全等价",
-      "requiresReview":true
+      "requiresReview":true,
+      "evidenceRefs":["EV-5-environment-package"]
     }
   ],
-  "facts":[{"field":"symptom","value":"SceneNotDisplayed","sourceQuote":"场景不能显示"}],
+  "facts":[{"field":"symptom","value":"SceneNotDisplayed","sourceQuote":"场景不能显示","evidenceRefs":["EV-5-symptom"]}],
+  "concepts":[],
   "rules":[],
   "knowledgeGaps":[],
+  "evidenceSpans":[{"id":"EV-5-environment-package","quote":"环境包"},{"id":"EV-5-symptom","quote":"场景不能显示"}],
   "status":"candidate"
 }
 ```
@@ -372,15 +423,19 @@ rule.when 的每个条件和 rule.then 的每个根因/动作都必须有对应 
 
 期望：
 {
+  "concepts":[],
   "facts":[],
   "rules":[],
+  "candidateMappings":[],
   "knowledgeGaps":[
     {
       "type":"insufficientEvidence",
       "missingFacts":["productVersion","deploymentEnvironment","startupLog"],
-      "sourceQuote":"无"
+      "sourceQuote":"无",
+      "evidenceRefs":["EV-6-gap"]
     }
   ],
+  "evidenceSpans":[{"id":"EV-6-gap","quote":"无"}],
   "status":"knowledge_gap"
 }
 ```
@@ -395,13 +450,16 @@ rule.when 的每个条件和 rule.then 的每个根因/动作都必须有对应 
 期望：
 {
   "facts":[
-    {"field":"symptom","value":"DeletedPropertyStillDisplayed","sourceQuote":"自定义属性删除后，在孪生体面板中还会显示"},
-    {"field":"action","value":"ReplaceJarPackage","sourceQuote":"换jar包"}
+    {"field":"symptom","value":"DeletedPropertyStillDisplayed","sourceQuote":"自定义属性删除后面板中还显示","evidenceRefs":["EV-7-symptom"]},
+    {"field":"action","value":"ReplaceJarPackage","sourceQuote":"换 jar 包","evidenceRefs":["EV-7-action"]}
   ],
+  "concepts":[],
   "rules":[],
+  "candidateMappings":[],
   "knowledgeGaps":[
-    {"type":"missingExplicitCause","missingFacts":["confirmedCause"],"sourceQuote":"换jar包以后……重新拉取"}
+    {"type":"missingExplicitCause","missingFacts":["confirmedCause"],"sourceQuote":"换 jar 包以后孪生体面板会去库中重新拉取","evidenceRefs":["EV-7-answer"]}
   ],
+  "evidenceSpans":[{"id":"EV-7-symptom","quote":"自定义属性删除后面板中还显示"},{"id":"EV-7-action","quote":"换 jar 包"},{"id":"EV-7-answer","quote":"换 jar 包以后孪生体面板会去库中重新拉取"}],
   "status":"candidate"
 }
 ```
@@ -416,12 +474,14 @@ rule.when 的每个条件和 rule.then 的每个根因/动作都必须有对应 
 期望：
 {
   "facts":[
-    {"field":"component","value":"ThreeDMaxPlugin","sourceQuote":"3dmax插件"},
-    {"field":"action","value":"DeleteUploadedModel","sourceQuote":"也可以删除模型"}
+    {"field":"component","value":"ThreeDMaxPlugin","sourceQuote":"3dmax插件","evidenceRefs":["EV-8-component"]},
+    {"field":"action","value":"DeleteUploadedModel","sourceQuote":"也可以删除模型","evidenceRefs":["EV-8-action"]}
   ],
+  "concepts":[],
   "rules":[],
   "candidateMappings":[],
   "knowledgeGaps":[],
+  "evidenceSpans":[{"id":"EV-8-component","quote":"3dmax插件"},{"id":"EV-8-action","quote":"也可以删除模型"}],
   "status":"no_extractable_rule"
 }
 ```
@@ -513,6 +573,46 @@ flowchart TD
 
 审核人必须能看到原文、抽取结构、置信度、候选影响范围和预期推理路径。审核不是只点击“通过”，还可以编辑规范概念、条件、动作、优先级、生效期和证据。
 
+### 8.1 发布版本与原子切换
+
+审核通过不等于可推理。发布协调器为每个 `knowledgeVersion` 创建不可变 manifest，并依次执行：
+
+```text
+1. 冻结批准事实、规则、映射、EvidenceSpan 和其审核版本；
+2. 写入 GraphDB 暂存命名图 `urn:knowledge:<version>:staging`；
+3. 生成 Datalog 输入和程序，执行编译与规则测试；
+4. 写入 PostgreSQL manifest，记录图谱、规则、映射和证据的 checksum；
+5. 所有校验通过后，在单一数据库事务中将版本状态由 staging 改为 published；
+6. 将 GraphDB 别名和 Datalog artifact 指针原子切换至该 manifest；任一步失败则保留旧 published 版本，并标记本版本 failed。
+```
+
+```json
+{
+  "knowledgeVersion": "2026.01.0",
+  "status": "published",
+  "graphName": "urn:knowledge:2026.01.0",
+  "graphChecksum": "sha256:...",
+  "ruleArtifact": "rules/2026.01.0/program.dl",
+  "ruleChecksum": "sha256:...",
+  "mappingVersionSet": ["integration-12"],
+  "evidenceChecksum": "sha256:...",
+  "publishedAt": "2026-08-20T10:00:00+08:00"
+}
+```
+
+运行时只能加载 `status=published` 的 manifest。`QueryRun` 保存完整 manifest，而不只保存一个可变的版本字符串，以保证图谱、规则和 Datalog 程序来自同一快照。
+
+### 8.2 候选到发布的审核状态机
+
+```text
+candidate -> in_review -> approved -> staged -> published
+                         |              |
+                         -> rejected    -> failed
+published -> deprecated
+```
+
+规则、事实、映射和证据任一依赖项被拒绝、失效或在发布预检中缺失时，版本不能进入 `published`。审核台保存候选 JSON、人工编辑后的 JSON、字段差异、审核理由和操作者，作为之后回放和责任追溯的依据。
+
 ## 9. 推理执行规范
 
 本节定义 POC 的确定性运行时。LLM 只在进入推理前把客户问题转为候选事实；一旦事实通过 Schema、术语和类型校验，根因、动作、冲突和缺失信息只能由已发布的规则、映射和事实推导。运行时不得让 LLM 临时增加规则或补全根因。
@@ -566,6 +666,28 @@ flowchart TD
 
 `origin` 只能是 `question`、`context`、`approved_mapping` 或 `derived_fact`。来自模型但未通过标准化的词保留在解析审计记录中，不能成为 `QueryFact`。
 
+### 9.2.1 缺失事实的补答与续跑
+
+`need_more_information` 不是终态。前端展示推理器返回的 `questions` 后，用户的每次补答都通过以下接口追加到同一个逻辑会话：
+
+```http
+POST /v1/reasoning/runs/{runId}/facts
+```
+
+```json
+{
+  "expectedRunRevision": 1,
+  "answers": [
+    {"field": "sourceVersion", "value": "4.2.2", "valueType": "version"},
+    {"field": "targetVersion", "value": "4.2.3", "valueType": "version"}
+  ]
+}
+```
+
+服务端使用原 `QueryRun` 的输入、已标准化事实、知识 manifest 和问题解析审计记录合并补答；经同样的类型和术语校验后创建新的不可变 revision，并重新执行推理。补答不能修改根因、动作、规则或知识版本。若前端携带的 `expectedRunRevision` 落后，返回 `409 stale_run_revision` 和最新状态，防止多窗口覆盖事实。
+
+响应返回新的 `runId`、`parentRunId`、`runRevision` 和完整推理结果。前端按时间线保留“原问题 -> 系统追问 -> 客户补答 -> 新结论”，同时可切换任一 revision 查看其事实集和证明图。
+
 ### 9.3 Rule DSL 的完整执行语义
 
 每条已批准规则在发布前必须具备以下字段：
@@ -587,7 +709,8 @@ flowchart TD
   },
   "then": {
     "diagnoses": ["SceneResourceStateIncomplete"],
-    "actions": ["ReuploadParkTjsSceneFile"]
+    "actions": ["ReuploadParkTjsSceneFile"],
+    "steps": [{"order": 1, "action": "ReuploadParkTjsSceneFile"}]
   },
   "evidence": ["FAQ-row-6428"],
   "review": {"reviewer": "support-owner", "reviewedAt": "2026-08-20T09:00:00+08:00"}
@@ -755,6 +878,7 @@ question-parser model and promptVersion
 normalized QueryFact set
 knowledgeVersion
 approved mapping version set
+published knowledge manifest and all artifact checksums
 compiled Datalog program checksum
 matched / rejected / partial rules
 rank and conflict result
@@ -792,8 +916,18 @@ EvidenceNode(FAQ-row-6428)
   "missingFacts": [],
   "conflicts": [],
   "proofGraph": {
-    "nodes": ["FactNode:sourceVersion", "FactNode:targetVersion", "FactNode:symptom", "RuleNode:R-SCENE-RESOURCE-001", "ActionNode:ReuploadParkTjsSceneFile"],
-    "edges": ["sourceVersion->rule", "targetVersion->rule", "symptom->rule", "rule->action"]
+    "nodes": [
+      {"id": "fact-source", "kind": "Fact", "conceptType": "ProductVersion", "value": "4.2.2"},
+      {"id": "fact-symptom", "kind": "Fact", "conceptType": "Symptom", "value": "GroundModelNotDisplayed"},
+      {"id": "rule-001", "kind": "Rule", "ruleId": "R-SCENE-RESOURCE-001"},
+      {"id": "cause-001", "kind": "Cause", "conceptType": "Cause", "value": "SceneResourceStateIncomplete"},
+      {"id": "action-001", "kind": "Action", "conceptType": "RemediationAction", "value": "ReuploadParkTjsSceneFile"}
+    ],
+    "edges": [
+      {"from": "fact-symptom", "to": "rule-001", "predicate": "matches"},
+      {"from": "rule-001", "to": "cause-001", "predicate": "derives"},
+      {"from": "cause-001", "to": "action-001", "predicate": "hasRemediation"}
+    ]
   },
   "evidence": [
     {"id": "FAQ-row-6428", "quote": "重新上传园区tjs场景文件后问题消失了"}
@@ -802,6 +936,48 @@ EvidenceNode(FAQ-row-6428)
 ```
 
 `status` 只能是 `resolved`、`need_more_information`、`conflict`、`no_approved_rule` 或 `authorization_denied`。Hermes 只能基于该结构组织自然语言，不能添加新的诊断、动作或未返回的证据。
+
+### 9.9.1 服务接口契约
+
+以下接口是 React 审核/推理工作台的最小边界。实际实现可合并分页和过滤参数，但不得绕过状态机或 manifest 预检：
+
+| 接口 | 用途 | 关键请求/响应字段 |
+| --- | --- | --- |
+| `GET /v1/candidates` | 列出候选单元 | `status`、`unitId`、分页、候选摘要 |
+| `GET /v1/candidates/{unitId}` | 加载原文与抽取结果 | `DocumentUnit`、`EvidenceSpan`、候选 JSON、审核差异 |
+| `PATCH /v1/candidates/{unitId}` | 保存审核编辑 | `expectedRevision`、候选/正式对象、审核理由 |
+| `POST /v1/reviews/{id}/decision` | 批准或拒绝 | `decision`、`reviewer`、`reason`、`expectedRevision` |
+| `GET/PATCH /v1/mappings/{id}` | 审核跨本体映射 | 映射依据、影响规则、状态与生效期 |
+| `POST /v1/knowledge-versions` | 创建并预检暂存版本 | 选定批准对象、manifest、校验结果 |
+| `POST /v1/knowledge-versions/{version}/publish` | 原子发布版本 | `expectedStatus=staged`、发布结果/失败原因 |
+| `POST /v1/reasoning/diagnose` | 发起一次诊断 | 问题、上下文、knowledgeVersion、`QueryRun` |
+| `POST /v1/reasoning/runs/{runId}/facts` | 补答并续跑 | `expectedRunRevision`、补答事实、新 revision |
+| `GET /v1/reasoning/runs/{runId}` | 查询回放与证明图 | QueryFact、规则、proofGraph、evidence、manifest |
+| `GET /v1/evidence/{evidenceId}` | 定位原文证据 | quote、上下文、DocumentUnit location、权限脱敏结果 |
+
+`GET /v1/reasoning/runs/{runId}` 的 `proofGraph` 必须提供节点 `kind`、`conceptType`、`value/ruleId` 以及边 `predicate`，使前端可同时渲染二维证明链和三维本体视图，不能从自然语言回答反向解析关系。
+
+### 9.9.2 问答页的本体证明视图
+
+推理问答页按“结论优先、证明按需展开”显示：
+
+```text
+默认：诊断结论 + 有序操作 + 适用条件 + 原文证据摘要
+展开：QueryFact -> Rule -> Cause -> Action 的二维证明链
+高级：可旋转/缩放的三维本体证明图 + 节点详情 + 原文回链
+```
+
+三维图的视觉编码固定如下，确保用户看到的是本体对象和谓词，而非装饰性关系线：
+
+| 节点 | 颜色 | 必填详情 |
+| --- | --- | --- |
+| `Fact` | 青色 | 字段、标准化值、origin、原始表达 |
+| `Rule` | 紫色 | ruleId、版本、命中条件、生效期 |
+| `Cause` | 橙色 | 概念类型、诊断名称、推导规则 |
+| `Action` / `DiagnosticStep` | 绿色 | action、步骤序号、前置条件 |
+| `Evidence` | 黄色 | 原文、位置、内容哈希、访问权限 |
+
+边标签必须直接取自 `proofGraph.edges[].predicate`。点击节点请求节点详情与 `EvidenceSpan`；点击证据节点定位原文。默认画布只显示当前结论的最小证明子图，用户主动展开时才加载跨本体桥接和旁支关系，避免将无关图谱噪声当作答案依据。
 
 ### 9.10 推理测试矩阵
 
@@ -817,6 +993,11 @@ EvidenceNode(FAQ-row-6428)
 | 未批准映射 | 仅有 candidate 跨本体映射 | 不产生派生事实 |
 | 冲突 | 同 rank 输出不同结论 | `conflict`，不输出唯一动作 |
 | 回放 | 固定 `QueryRun` | 重放得到相同规则、轨迹和输出 |
+| 文档单元 | 标题、段落、表格和 FAQ 输入 | 不跨块切分；EvidenceSpan 可定位原文 |
+| 证据绑定 | 每个条件/结论/步骤 | 每个对象至少有一个有效 EvidenceSpan |
+| 发布快照 | 图谱、规则或映射校验任一失败 | 不切换 published manifest，旧版本继续服务 |
+| 补答续跑 | `need_more_information` 后补齐字段 | 创建新 revision；继承原 manifest；不得改变规则或结论输入 |
+| 证明图 | 已解决结论 | 节点类型、谓词边、规则和原文证据可由 API 直接读取 |
 
 测试集不得只验证最终中文回答；必须断言 `normalized QueryFact`、`matchedRules`、`missingFacts`、`proofGraph` 和 `evidence`。
 
@@ -864,6 +1045,11 @@ POC 建议准备 20 条人工标准问题：
 - 至少 15 条样本形成经审核的正式事实或规则；
 - 20 条验收问题中，正式推理结果与标准答案一致率不低于 90%；
 - 每个结论都返回规则 ID、推理路径和来源行号；
+- 每个正式规则的条件、诊断、动作和步骤均有可定位的 `EvidenceSpan`；
+- 对完整文档的标题、段落、表格和 FAQ 输入均能生成可审核的 `DocumentUnit`；
+- 发布失败时当前 `published` manifest、GraphDB 命名图和 Datalog artifact 保持不变；
+- 缺失信息补答后能生成新 `QueryRun` revision，并在前端显示完整问答时间线；
+- 二维与三维证明视图均只使用 `proofGraph` 的节点类型和谓词边，不从自然语言答案猜测关系；
 - 对缺少版本、日志或环境的提问，至少 90% 能返回正确缺失字段；
 - 未批准映射、冲突规则和过期规则不得无提示地产生唯一结论；
 - 更换 OpenAI-compatible 模型服务，只修改配置即可完成同一批测试。
@@ -873,20 +1059,22 @@ POC 建议准备 20 条人工标准问题：
 ```text
 抽样数据 manifest
 30 条样本的候选抽取 JSON
+完整文档到 DocumentUnit 的分段样例
 已批准的诊断本体 TTL/OWL
 已批准的规则 DSL JSON
+知识版本 manifest、GraphDB 命名图和 Datalog artifact
 20 条验收问题和标准答案
 推理 API
 React 审核/推理工作台
-每条结论的推理路径与证据
+每条结论的二维/三维本体证明图与原文证据
 POC 测试报告
 ```
 
 ## 13. 实施里程碑
 
-1. 第 1 周：导入 30 条样本，完成抽取 Schema、提示词和 JSON 校验。
-2. 第 2 周：完成概念标准化、审核状态、证据绑定和规则 DSL。
-3. 第 3 周：完成 GraphDB、Datalog、推理 API 和推理路径。
-4. 第 4 周：完成 React 审核台、20 条验收问题和测试报告。
+1. 第 1 周：导入 30 条样本和至少 1 份完整文档，完成 DocumentUnit、抽取 Schema、提示词和 JSON/EvidenceSpan 校验。
+2. 第 2 周：完成概念标准化、候选到发布状态机、证据绑定和统一 Rule DSL。
+3. 第 3 周：完成 GraphDB、Datalog、发布 manifest、推理 API、补答续跑和推理路径。
+4. 第 4 周：完成 React 审核台、版本发布页、二维/三维本体证明视图、20 条验收问题和测试报告。
 
 POC 结束后，根据错误分布决定下一阶段重点：抽取质量、术语治理、规则覆盖、跨本体映射，或推理性能。不要在没有错误分类的情况下直接扩大文档数量。
