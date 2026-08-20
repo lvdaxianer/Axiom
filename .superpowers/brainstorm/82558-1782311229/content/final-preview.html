@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>设计文件智能体 · 最终版预览</title>
+    <style>
+      :root{
+        --bg:#f3f6fb;
+        --panel:#fff;
+        --panel-2:#f8fbff;
+        --text:#122033;
+        --muted:#667085;
+        --line:#dbe3f1;
+        --accent:#5b5ce2;
+        --accent-2:#0ea5e9;
+        --accent-3:#14b8a6;
+        --good:#059669;
+        --warn:#d97706;
+        --bad:#dc2626;
+        --shadow:0 18px 44px rgba(17,24,39,.08);
+        --radius:22px;
+      }
+      *{box-sizing:border-box}
+      body{
+        margin:0;
+        font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+        color:var(--text);
+        background:
+          radial-gradient(circle at 10% 8%, rgba(91,92,226,.10), transparent 20%),
+          radial-gradient(circle at 90% 0%, rgba(14,165,233,.10), transparent 18%),
+          linear-gradient(180deg,#f8fbff 0%, var(--bg) 100%);
+      }
+      .wrap{max-width:1600px;margin:0 auto;padding:22px}
+      .topbar{
+        display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+        background:rgba(255,255,255,.78);backdrop-filter:blur(16px);
+        border:1px solid rgba(17,24,39,.06);border-radius:28px;padding:18px 20px;box-shadow:var(--shadow);
+      }
+      .brand{display:flex;align-items:center;gap:14px}
+      .mark{
+        width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,var(--accent),#8b5cf6);
+        box-shadow:0 12px 28px rgba(91,92,226,.24);
+      }
+      .brand h1{margin:0;font-size:20px}
+      .brand p{margin:4px 0 0;color:var(--muted);font-size:13px}
+      .actions{display:flex;gap:10px;flex-wrap:wrap}
+      .btn{
+        padding:11px 14px;border-radius:14px;border:1px solid var(--line);background:#fff;color:var(--text);
+        box-shadow:0 8px 18px rgba(15,23,42,.05);font-size:13px
+      }
+      .btn.primary{background:linear-gradient(135deg,var(--accent),#7c3aed);color:#fff;border-color:transparent}
+
+      .tabs{
+        margin-top:14px;background:rgba(255,255,255,.68);backdrop-filter:blur(10px);
+        border:1px solid rgba(17,24,39,.05);border-radius:20px;padding:10px;display:flex;gap:10px;flex-wrap:wrap;
+      }
+      .tab{
+        border:0;background:transparent;color:var(--muted);padding:10px 14px;border-radius:14px;font-size:13px;cursor:pointer
+      }
+      .tab.active{background:#fff;color:var(--accent);box-shadow:0 10px 22px rgba(15,23,42,.07)}
+
+      .hero{
+        margin-top:16px;background:linear-gradient(135deg,#0f172a,#1f2a44 52%,#243b72);
+        border-radius:32px;color:#fff;padding:26px 28px;box-shadow:var(--shadow);
+        display:grid;grid-template-columns:1.2fr .8fr;gap:18px;align-items:stretch;
+      }
+      .hero h2{margin:0 0 10px;font-size:40px;line-height:1.08}
+      .hero p{margin:0;color:rgba(255,255,255,.8);max-width:900px;line-height:1.7}
+      .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+      .chip{
+        display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;
+        background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.12);color:#e8edff;font-size:12px
+      }
+      .hero-card{
+        background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:26px;padding:18px;display:grid;gap:12px
+      }
+      .hero-metric{
+        display:flex;justify-content:space-between;align-items:flex-end;padding:14px 16px;border-radius:18px;background:rgba(255,255,255,.08)
+      }
+      .hero-metric b{font-size:26px}
+      .hero-metric span{color:rgba(255,255,255,.72);font-size:12px}
+
+      .grid{display:grid;grid-template-columns:330px minmax(0,1fr) 350px;gap:16px;margin-top:16px}
+      .panel{
+        background:rgba(255,255,255,.90);backdrop-filter:blur(8px);
+        border:1px solid rgba(17,24,39,.06);border-radius:28px;box-shadow:var(--shadow);overflow:hidden;
+      }
+      .panel-h{
+        display:flex;justify-content:space-between;align-items:center;gap:12px;
+        padding:16px 18px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#fff,#fbfcff)
+      }
+      .panel-h h3{margin:0;font-size:16px}
+      .panel-h small{color:var(--muted)}
+      .panel-b{padding:18px}
+      .workspace{display:grid;gap:14px}
+      .subgrid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}
+      .mini-panel{
+        border:1px solid var(--line);border-radius:20px;padding:16px;background:linear-gradient(180deg,#fff,#fafcff)
+      }
+      .mini-panel h4{margin:0 0 8px;font-size:14px}
+      .mini-panel p,.mini-panel li{margin:0;color:var(--muted);font-size:13px;line-height:1.65}
+      .mini-panel ul{margin:0;padding-left:18px}
+      .nav{display:grid;gap:10px}
+      .nav .item{
+        border:1px solid var(--line);border-radius:18px;background:#fff;padding:14px 14px 13px;transition:.16s
+      }
+      .nav .item.active{border-color:#c9d3ef;box-shadow:0 12px 26px rgba(15,23,42,.07);transform:translateY(-1px)}
+      .nav .item b{display:block;font-size:14px}
+      .nav .item p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.55}
+      .nav .item .flag{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:999px;background:#eef2ff;color:var(--accent);font-size:11px}
+      .nav .item.warn .flag{background:#fff7ed;color:var(--warn)}
+
+      .board{
+        background:
+          linear-gradient(#f8fafc 1px, transparent 1px),
+          linear-gradient(90deg,#f8fafc 1px, transparent 1px),
+          linear-gradient(180deg,#fff,#f8fbff);
+        background-size:28px 28px,28px 28px,100% 100%;
+        border:1px solid var(--line);border-radius:24px;padding:18px;min-height:640px;position:relative;
+      }
+      .board-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:16px}
+      .board-title h4{margin:0;font-size:22px}
+      .board-title p{margin:4px 0 0;color:var(--muted)}
+      .switch{
+        display:flex;gap:8px;flex-wrap:wrap
+      }
+      .switch span{
+        padding:8px 12px;border-radius:999px;background:#eef2ff;color:var(--accent);font-size:12px
+      }
+      .node{
+        position:absolute;width:180px;border-radius:20px;border:1px solid var(--line);background:#fff;
+        box-shadow:0 12px 30px rgba(15,23,42,.08);padding:14px;transition:.16s
+      }
+      .node:hover{transform:translateY(-2px)}
+      .node b{display:block;margin-bottom:6px;font-size:15px}
+      .node p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}
+      .node .idx{font-size:12px;color:#64748b;margin-bottom:10px}
+      .node.start{
+        left:26px;top:48px;background:linear-gradient(135deg,var(--accent),#7681ff);color:#fff;border-color:transparent
+      }
+      .node.start p,.node.start .idx{color:rgba(255,255,255,.82)}
+      .node.parse{left:246px;top:48px}
+      .node.rule{left:466px;top:48px}
+      .node.check{left:466px;top:220px}
+      .node.branch{left:26px;top:220px;background:#fff8eb;border-color:#f3ddb1}
+      .node.report{left:246px;top:392px}
+      .node.qa{left:686px;top:48px}
+      .node.square{left:686px;top:220px;background:#ecfeff;border-color:#b6f0f7}
+      .node.monitor{left:906px;top:48px;background:#f0fdf4;border-color:#bde7c8}
+      .node.model{left:906px;top:220px;background:#f8f8ff;border-color:#d8dbff}
+      .node.library{left:686px;top:392px;background:#f5f3ff;border-color:#ddd6fe}
+      .node.gateway{left:906px;top:392px;background:#eff6ff;border-color:#bfdbfe}
+
+      .link{
+        position:absolute;height:4px;background:linear-gradient(90deg,#cfd8ea,#cfd8ea);
+        border-radius:999px;opacity:.95
+      }
+      .link.dash{background:repeating-linear-gradient(90deg,#cfd8ea 0 12px,transparent 12px 20px)}
+      .l1{left:200px;top:108px;width:46px}
+      .l2{left:420px;top:108px;width:46px}
+      .l3{left:540px;top:140px;width:4px;height:58px;background:#cfd8ea}
+      .l4{left:466px;top:262px;width:246px}
+      .l5{left:246px;top:338px;width:4px;height:56px;background:#cfd8ea}
+      .l6{left:866px;top:108px;width:40px}
+      .l7{left:866px;top:262px;width:40px}
+      .l8{left:866px;top:420px;width:40px}
+      .l9{left:646px;top:420px;width:40px}
+
+      .stack{display:grid;gap:12px}
+      .box{
+        border:1px solid var(--line);border-radius:20px;background:#fff;padding:16px
+      }
+      .box h4{margin:0 0 8px;font-size:15px}
+      .box p,.box li{margin:0;color:var(--muted);font-size:13px;line-height:1.7}
+      .box ul{margin:0;padding-left:18px}
+      .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+      .stat{
+        border:1px solid var(--line);background:linear-gradient(180deg,#fff,#fbfcff);border-radius:18px;padding:14px
+      }
+      .stat b{display:block;font-size:24px;margin-bottom:4px}
+      .stat span{font-size:12px;color:var(--muted)}
+      .overview{
+        display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px
+      }
+      .overview .ov{
+        border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,#fff,#fbfcff);padding:14px
+      }
+      .overview .ov b{display:block;font-size:24px;margin-bottom:4px}
+      .overview .ov span{font-size:12px;color:var(--muted)}
+      .issues{display:grid;gap:10px}
+      .issue{
+        border:1px solid var(--line);border-radius:18px;padding:14px;background:#fff
+      }
+      .issue .head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+      .issue .head b{font-size:14px}
+      .issue .head em{
+        font-style:normal;font-size:11px;padding:4px 8px;border-radius:999px;background:#eef2ff;color:var(--accent)
+      }
+      .issue.good .head em{background:#ecfdf5;color:var(--good)}
+      .issue.warn .head em{background:#fff7ed;color:var(--warn)}
+      .issue.bad .head em{background:#fef2f2;color:var(--bad)}
+      .issue p{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.55}
+      .footer{margin-top:16px;color:var(--muted);font-size:12px;text-align:right}
+      @media (max-width: 1240px){.grid,.subgrid,.overview{grid-template-columns:1fr}.board{min-height:760px}}
+      @media (max-width: 760px){
+        .wrap{padding:14px}.hero{grid-template-columns:1fr}.hero h2{font-size:30px}
+        .hero-card{margin-top:10px}
+        .grid{grid-template-columns:1fr}
+        .node{position:relative;left:auto!important;top:auto!important;width:auto;margin-bottom:10px}
+        .board{min-height:auto}
+        .link{display:none}
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="topbar">
+        <div class="brand">
+          <div class="mark"></div>
+          <div>
+            <h1>设计文件智能体平台</h1>
+            <p>最终版本预览 · 模板治理 / 知识治理 / 编排 / 广场 / 监控</p>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn">日志中心</button>
+          <button class="btn">模型管理</button>
+          <button class="btn">智能体广场</button>
+          <button class="btn primary">发布版本</button>
+        </div>
+      </section>
+
+      <div class="tabs">
+        <button class="tab active">文档审核工作台</button>
+        <button class="tab">知识库治理</button>
+        <button class="tab">智能体编排</button>
+        <button class="tab">模型与日志</button>
+        <button class="tab">应用广场</button>
+      </div>
+
+      <section class="hero">
+        <div>
+          <div class="chip">最终版：平台化交付</div>
+          <h2>把模板校验做成一套可治理、可编排、可追溯的企业平台</h2>
+          <p>这个页面展示的是最终版的大体效果：左侧看版本与范围，中间看编排和应用结构，右侧看监控、问题和运行状态。它不是一次性演示页，而是接近最终交付形态的静态预览。</p>
+          <div class="chips">
+            <span class="chip">日志与监控</span>
+            <span class="chip">指标管理</span>
+            <span class="chip">知识库管理</span>
+            <span class="chip">智能体编排</span>
+            <span class="chip">知识问答</span>
+            <span class="chip">智能体广场</span>
+          </div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-metric"><div><span>运行任务</span><b>286</b></div><span>今日</span></div>
+          <div class="hero-metric"><div><span>模型调用</span><b>1.8M</b></div><span>Token</span></div>
+          <div class="hero-metric"><div><span>平均耗时</span><b>42s</b></div><span>Task</span></div>
+          <div class="hero-metric"><div><span>异常率</span><b>1.7%</b></div><span>Health</span></div>
+        </div>
+      </section>
+
+      <section class="section-like" style="margin-top:16px">
+        <div class="overview">
+          <div class="ov"><b>48,216</b><span>知识分片</span></div>
+          <div class="ov"><b>1,284</b><span>规则对象</span></div>
+          <div class="ov"><b>36,902</b><span>月调用量</span></div>
+          <div class="ov"><b>87.5%</b><span>平均命中率</span></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <aside class="panel">
+          <div class="panel-h"><h3>版本与模块</h3><small>最终版</small></div>
+          <div class="panel-b">
+            <div class="nav">
+              <div class="item active">
+                <b>基础底座</b>
+                <p>日志、监控、模型、权限、版本、审计。</p>
+                <span class="flag">平台核心</span>
+              </div>
+              <div class="item">
+                <b>知识治理</b>
+                <p>指标管理、知识库、图谱审核、证据链、chunk。</p>
+                <span class="flag">知识生产</span>
+              </div>
+              <div class="item">
+                <b>能力编排</b>
+                <p>React Flow 画布、节点调试、发布、回滚。</p>
+                <span class="flag">可配置流程</span>
+              </div>
+              <div class="item warn">
+                <b>应用消费</b>
+                <p>智能体广场、知识问答、审核应用统一入口。</p>
+                <span class="flag">运行入口</span>
+              </div>
+              <div class="item">
+                <b>结果留痕</b>
+                <p>任务、节点、模型调用、问题、证据全部可追踪。</p>
+                <span class="flag">全链路 Trace</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main class="panel">
+          <div class="panel-h">
+            <div>
+              <h3>主界面预览</h3>
+              <small>最终版大屏 / 编排 / 审核 / 广场</small>
+            </div>
+            <div class="switch">
+              <span>审查工作台</span>
+              <span>知识录入</span>
+              <span>智能体编排</span>
+            </div>
+          </div>
+          <div class="panel-b">
+            <div class="board">
+              <div class="board-title">
+                <div>
+                  <h4>审核智能体编排</h4>
+                  <p>流程设计、节点调试、模板校验、知识召回、结果输出。</p>
+                </div>
+                <div class="switch">
+                  <span>React Flow 画布</span>
+                  <span>版本 v1.0</span>
+                </div>
+              </div>
+
+              <div class="link dash l1"></div>
+              <div class="link dash l2"></div>
+              <div class="link l3"></div>
+              <div class="link dash l4"></div>
+              <div class="link l5"></div>
+              <div class="link dash l6"></div>
+              <div class="link l7"></div>
+              <div class="link dash l8"></div>
+              <div class="link dash l9"></div>
+
+              <div class="node start">
+                <div class="idx">01 / 入口</div>
+                <b>开始节点</b>
+                <p>上传文件、选择模板、绑定知识库、配置任务参数。</p>
+              </div>
+              <div class="node parse">
+                <div class="idx">02 / 解析</div>
+                <b>文档解析</b>
+                <p>Word / PDF / OCR / 标题树 / 字体字号 / 表格结构。</p>
+              </div>
+              <div class="node rule">
+                <div class="idx">03 / 约束</div>
+                <b>指标装载</b>
+                <p>载入结构、样式、内容、条件必填、术语标准。</p>
+              </div>
+              <div class="node check">
+                <div class="idx">04 / 判定</div>
+                <b>规则校验</b>
+                <p>输出哪里错了、为什么错了、依据是什么。</p>
+              </div>
+              <div class="node branch">
+                <div class="idx">05 / 复核</div>
+                <b>人工确认</b>
+                <p>低置信结果转人工，避免误报影响信任。</p>
+              </div>
+              <div class="node report">
+                <div class="idx">06 / 输出</div>
+                <b>报告生成</b>
+                <p>审查报告、修改建议、Trace、证据链。</p>
+              </div>
+              <div class="node qa">
+                <div class="idx">07 / 应用</div>
+                <b>知识问答</b>
+                <p>召回 chunk、重排序、答案带引用来源。</p>
+              </div>
+              <div class="node square">
+                <div class="idx">08 / 分发</div>
+                <b>智能体广场</b>
+                <p>统一展示审核应用和知识问答应用。</p>
+              </div>
+              <div class="node monitor">
+                <div class="idx">09 / 监控</div>
+                <b>日志中心</b>
+                <p>用户日志、任务日志、模型日志、服务健康。</p>
+              </div>
+              <div class="node model">
+                <div class="idx">10 / 底座</div>
+                <b>模型管理</b>
+                <p>LLM、embedding、rerank、OCR、VL、parser 统一纳管。</p>
+              </div>
+              <div class="node library">
+                <div class="idx">11 / 知识</div>
+                <b>知识库治理</b>
+                <p>模板、指标、图谱、chunk、证据链统一管理。</p>
+              </div>
+              <div class="node gateway">
+                <div class="idx">12 / 发布</div>
+                <b>应用广场</b>
+                <p>审核应用、问答应用、版本发布和统一运行入口。</p>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside class="panel">
+          <div class="panel-h"><h3>运行态</h3><small>静态预览</small></div>
+          <div class="panel-b stack">
+            <div class="box">
+              <h4>今日状态</h4>
+              <div class="stats">
+                <div class="stat"><b>98.3%</b><span>服务可用率</span></div>
+                <div class="stat"><b>42s</b><span>平均校验耗时</span></div>
+                <div class="stat"><b>286</b><span>今日任务数</span></div>
+                <div class="stat"><b>1.7%</b><span>异常率</span></div>
+              </div>
+            </div>
+            <div class="box">
+              <h4>知识库录入</h4>
+              <ul>
+                <li>选择模板后按指标生成候选图谱</li>
+                <li>人工审核后进入正式知识库</li>
+                <li>证据链保留文件、页码与段落</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h4>当前问题</h4>
+              <div class="issues">
+                <div class="issue bad">
+                  <div class="head"><b>缺少“接口设计”章节</b><em>严重</em></div>
+                  <p>模板要求存在该一级章节，但当前文档没有识别到对应内容。</p>
+                </div>
+                <div class="issue warn">
+                  <div class="head"><b>一级标题字号不一致</b><em>待确认</em></div>
+                  <p>实际字号与模板要求存在差异，建议人工复核版式。</p>
+                </div>
+                <div class="issue good">
+                  <div class="head"><b>术语统一通过</b><em>通过</em></div>
+                  <p>关键术语与模板术语库一致，未发现混用。</p>
+                </div>
+              </div>
+            </div>
+            <div class="box">
+              <h4>日志中心</h4>
+              <p>用户可看自己的操作与任务日志，管理员可看全部日志、模型调用和服务健康。</p>
+            </div>
+            <div class="box">
+              <h4>最终版重点</h4>
+              <ul>
+                <li>日志、监控、审计、版本治理</li>
+                <li>模型纳管与路由策略</li>
+                <li>知识库录入、审核、发布</li>
+                <li>编排、问答、广场统一分发</li>
+              </ul>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <div class="footer">最终版静态预览 · 适合汇报展示与方向确认</div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,42 @@
+<h2>问答页如何呈现本体结构？</h2>
+<p class="subtitle">两种方案都保留最终答案、规则与原文证据；区别在于用户如何理解推理依据。</p>
+
+<div class="cards">
+  <div class="card" data-choice="progressive" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">诊断结果</div>
+        <div class="mockup-body">
+          <div class="label">建议操作</div>
+          <h3>重新上传园区 TJS 场景文件</h3>
+          <p>适用条件：4.2.2 升级到 4.2.3 后，地面模型不显示。</p>
+          <hr>
+          <div class="label">推理依据</div>
+          <p>症状 → 版本迁移 → 规则 → 根因 → 操作</p>
+          <button class="mock-button">展开本体关系与原文证据</button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 渐进展开（推荐）</h3>
+      <p>默认阅读答案；需要解释时逐层展开事实、规则、本体关系与证据。适合一线客户与支持人员。</p>
+    </div>
+  </div>
+  <div class="card" data-choice="graph_first" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">诊断证明图</div>
+        <div class="mockup-body">
+          <div class="placeholder">地面模型不显示 → R-SCENE-RESOURCE-001 → 场景资源状态不完整 → 重新上传 TJS</div>
+          <hr>
+          <div class="label">结论</div>
+          <p>建议重新上传园区 TJS 场景文件。</p>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 图谱优先</h3>
+      <p>先呈现可交互的关系图，再展示答案。适合知识工程师，但会提高普通用户的理解成本。</p>
+    </div>
+  </div>
+</div>

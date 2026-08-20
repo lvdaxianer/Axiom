@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>设计文件智能体整体技术方案汇报</title>
+    <style>
+      :root {
+        --bg: #f4f6fb;
+        --panel: #ffffff;
+        --text: #162033;
+        --muted: #667085;
+        --line: #d9dfeb;
+        --accent: #4f46e5;
+        --accent-2: #0ea5e9;
+        --accent-soft: #eef2ff;
+        --good: #059669;
+        --warn: #d97706;
+        --shadow: 0 16px 40px rgba(17, 24, 39, 0.08);
+        --radius: 20px;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(79, 70, 229, 0.08), transparent 25%),
+          radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 25%),
+          var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+      }
+      .wrap {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 32px 22px 48px;
+      }
+      .hero {
+        background: linear-gradient(135deg, #111827, #1f2a44 55%, #243b72);
+        color: #fff;
+        border-radius: 28px;
+        padding: 34px 34px 28px;
+        box-shadow: var(--shadow);
+      }
+      .eyebrow {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.12);
+        color: #dbeafe;
+        font-size: 12px;
+        letter-spacing: .02em;
+      }
+      h1 {
+        margin: 16px 0 10px;
+        font-size: 38px;
+        line-height: 1.15;
+        letter-spacing: 0;
+      }
+      .hero p {
+        margin: 0;
+        max-width: 900px;
+        color: rgba(255,255,255,0.82);
+        font-size: 16px;
+      }
+      .hero-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 22px;
+      }
+      .kpi {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 18px;
+        padding: 16px;
+        min-height: 104px;
+      }
+      .kpi b {
+        display: block;
+        font-size: 22px;
+        margin-bottom: 4px;
+      }
+      .kpi span {
+        color: rgba(255,255,255,0.74);
+        font-size: 13px;
+      }
+      .section {
+        margin-top: 22px;
+        background: var(--panel);
+        border: 1px solid rgba(17,24,39,0.06);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 24px;
+      }
+      .section h2 {
+        margin: 0 0 12px;
+        font-size: 22px;
+      }
+      .section .sub {
+        margin: 0 0 18px;
+        color: var(--muted);
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 18px;
+        background: #fff;
+      }
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 17px;
+      }
+      .card p, .card li {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .card ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 13px;
+        border: 1px solid #dfe3ff;
+      }
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+      }
+      .table th, .table td {
+        text-align: left;
+        padding: 14px 12px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+        font-size: 14px;
+      }
+      .table th {
+        background: #f8fafc;
+        color: #334155;
+        font-size: 13px;
+      }
+      .table tr:last-child td { border-bottom: 0; }
+      .timeline {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .phase {
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        padding: 16px;
+        background: linear-gradient(180deg, #fff, #fafbff);
+      }
+      .phase .tag {
+        font-size: 12px;
+        color: var(--accent);
+        background: var(--accent-soft);
+        display: inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        margin-bottom: 10px;
+      }
+      .phase strong {
+        display: block;
+        margin-bottom: 8px;
+      }
+      .phase p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .split-note {
+        border-left: 4px solid var(--accent);
+        background: #f8faff;
+        padding: 14px 16px;
+        border-radius: 14px;
+        color: #334155;
+      }
+      .footer {
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 13px;
+        text-align: right;
+      }
+      @media (max-width: 980px) {
+        .hero-grid, .grid-2, .timeline { grid-template-columns: 1fr 1fr; }
+      }
+      @media (max-width: 720px) {
+        .wrap { padding: 16px; }
+        .hero { padding: 22px; border-radius: 22px; }
+        h1 { font-size: 30px; }
+        .hero-grid, .grid-2, .timeline { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="hero">
+        <div class="eyebrow">设计文件智能体 · 整体技术方案汇报</div>
+        <h1>模板约束驱动的文档校验与知识治理平台</h1>
+        <p>这套方案面向软件说明类文档的模板入库、指标管理、知识录入、图谱审核、文档校验、结果输出与后续平台化扩展，采用“快速出成果版 + 最终平台版”的双版本路径。</p>
+        <div class="hero-grid">
+          <div class="kpi"><b>一期闭环</b><span>模板管理、指标管理、知识库录入、图谱审核、校验、报告输出</span></div>
+          <div class="kpi"><b>二期平台化</b><span>日志监控、模型管理、编排、问答、广场、权限与审计</span></div>
+          <div class="kpi"><b>校验原则</b><span>模型负责识别，规则引擎负责判定，人工负责审核发布</span></div>
+          <div class="kpi"><b>存储策略</b><span>PostgreSQL + 磁盘/NAS + pgvector，后续可平滑扩展</span></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>1. 规划总览</h2>
+        <p class="sub">系统按底座、知识治理、编排应用、消费入口四层设计。</p>
+        <div class="grid-2">
+          <div class="card">
+            <h3>基础底座</h3>
+            <ul>
+              <li>日志与运行监控</li>
+              <li>模型管理</li>
+              <li>权限、版本、审计</li>
+              <li>文件与结构化数据存储</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>知识治理</h3>
+            <ul>
+              <li>指标管理</li>
+              <li>知识库管理</li>
+              <li>模板图谱审核</li>
+              <li>证据链与 chunk 共存</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>能力编排</h3>
+            <ul>
+              <li>智能体流程编排</li>
+              <li>文档校验节点</li>
+              <li>知识问答构建</li>
+              <li>节点调试与发布</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>应用分发</h3>
+            <ul>
+              <li>智能体广场</li>
+              <li>审核应用</li>
+              <li>知识问答应用</li>
+              <li>统一运行入口</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>2. 两个版本</h2>
+        <p class="sub">演示版的目标是快速看到价值，最终版的目标是形成平台能力。</p>
+        <div class="timeline">
+          <div class="phase">
+            <div class="tag">演示版</div>
+            <strong>模板管理</strong>
+            <p>支持软件设计说明、需求规格、标准化工作报告、产品模版、接口设计模版等类型。</p>
+          </div>
+          <div class="phase">
+            <div class="tag">演示版</div>
+            <strong>指标管理 + 图谱审核</strong>
+            <p>模型按指标生成候选图谱，人工确认后发布，确保有倾向性且可追溯。</p>
+          </div>
+          <div class="phase">
+            <div class="tag">演示版</div>
+            <strong>文档校验闭环</strong>
+            <p>选择模板后校验字号、标题、章节、条件必填项和术语标准引用。</p>
+          </div>
+          <div class="phase">
+            <div class="tag">最终版</div>
+            <strong>平台化能力</strong>
+            <p>补齐日志监控、模型管理、编排、问答、广场、权限和告警体系。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>3. 推荐技术栈</h2>
+        <p class="sub">按“先快后稳”的原则，先选成熟且易二开的组合。</p>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>层级</th>
+              <th>推荐方案</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>前端</td>
+              <td>React + TypeScript + React Flow</td>
+              <td>用于管理台、审核台、广场和节点编排画布。</td>
+            </tr>
+            <tr>
+              <td>后端</td>
+              <td>Python FastAPI</td>
+              <td>适合文档处理、规则引擎、AI 编排和 API 聚合。</td>
+            </tr>
+            <tr>
+              <td>任务调度</td>
+              <td>Redis + Celery</td>
+              <td>支持文档解析、录入、校验、重算等异步任务。</td>
+            </tr>
+            <tr>
+              <td>主库</td>
+              <td>PostgreSQL</td>
+              <td>承载模板、指标、日志、结果、配置和审计数据。</td>
+            </tr>
+            <tr>
+              <td>文件存储</td>
+              <td>磁盘 / 共享 NAS</td>
+              <td>首期可直接使用本地或共享文件系统，后续再抽象对象存储接口。</td>
+            </tr>
+            <tr>
+              <td>向量检索</td>
+              <td>pgvector</td>
+              <td>先轻量落地，后续需要再升级专业向量库。</td>
+            </tr>
+            <tr>
+              <td>模型层</td>
+              <td>统一模型网关</td>
+              <td>接入 LLM、embedding、rerank、OCR、VL、parser 等能力。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section">
+        <h2>4. 核心业务链路</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>模板入库链路</h3>
+            <div class="pill-row">
+              <span class="pill">上传模板</span>
+              <span class="pill">抽取指标</span>
+              <span class="pill">生成候选图谱</span>
+              <span class="pill">人工审核</span>
+              <span class="pill">发布版本</span>
+            </div>
+          </div>
+          <div class="card">
+            <h3>文档校验链路</h3>
+            <div class="pill-row">
+              <span class="pill">选择模板</span>
+              <span class="pill">解析文档</span>
+              <span class="pill">装载指标</span>
+              <span class="pill">规则判定</span>
+              <span class="pill">输出问题与依据</span>
+            </div>
+          </div>
+          <div class="card">
+            <h3>知识问答链路</h3>
+            <div class="pill-row">
+              <span class="pill">选择知识库</span>
+              <span class="pill">召回 chunk</span>
+              <span class="pill">rerank</span>
+              <span class="pill">LLM 生成</span>
+              <span class="pill">返回引用来源</span>
+            </div>
+          </div>
+          <div class="card">
+            <h3>编排发布链路</h3>
+            <div class="pill-row">
+              <span class="pill">画布编排</span>
+              <span class="pill">节点调试</span>
+              <span class="pill">版本发布</span>
+              <span class="pill">广场分发</span>
+              <span class="pill">运行留痕</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>5. 一期建议</h2>
+        <div class="split-note">
+          先把“模板管理 + 指标管理 + 知识库录入 + 图谱审核 + 文档校验 + 报告输出”做成可现场演示的闭环，同时保留人工确认、基础日志和基础模型接入。
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>6. 风险与边界</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>建议控制的风险</h3>
+            <ul>
+              <li>首期不要同时上全量编排、广场、问答和复杂跨文档校验。</li>
+              <li>不要把最终判定交给模型，规则引擎必须是主判定器。</li>
+              <li>不要把图谱做成唯一数据源，指标和证据索引要并存。</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>建议保留的扩展口</h3>
+            <ul>
+              <li>后续可接对象存储，但首期磁盘即可。</li>
+              <li>后续可替换向量库，但首期 pgvector 足够。</li>
+              <li>后续可扩多供应商模型和更复杂路由策略。</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">设计文件智能体整体技术方案 · 静态汇报版</div>
+    </div>
+  </body>
+</html>

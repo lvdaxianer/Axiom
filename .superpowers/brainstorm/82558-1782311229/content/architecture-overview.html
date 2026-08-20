@@ -1,0 +1,82 @@
+<h2>平台分层架构</h2>
+<p class="subtitle">演示版先跑通最短闭环，最终版再补齐平台级治理与编排能力。</p>
+
+<div class="mockup">
+  <div class="mockup-header">底座层 / 演示版 / 最终版</div>
+  <div class="mockup-body">
+    <div class="section">
+      <div class="label">基础底座</div>
+      <div class="cards">
+        <div class="card">
+          <div class="card-body">
+            <h3>日志与监控</h3>
+            <p>用户日志、审核日志、知识录入日志、服务健康和模型健康。</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <h3>模型管理</h3>
+            <p>LLM、embedding、rerank、OCR、VL、parser 统一注册与路由。</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <h3>权限与版本</h3>
+            <p>知识库、模板、流程、应用的发布、回滚、可见范围控制。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="mockup">
+        <div class="mockup-header">演示版</div>
+        <div class="mockup-body">
+          <div class="section">
+            <h3>1. 模板管理</h3>
+            <p>维护几类模板和少量关键指标，形成约束性输入。</p>
+          </div>
+          <div class="section">
+            <h3>2. 知识库录入</h3>
+            <p>上传模板文档，按指标生成候选图谱，人工审核后发布。</p>
+          </div>
+          <div class="section">
+            <h3>3. 文档校验</h3>
+            <p>选择模板，对上传文档做结构、字号、标题、选填项校验。</p>
+          </div>
+          <div class="section">
+            <h3>4. 报告输出</h3>
+            <p>输出哪里错了、为什么错了、依据是什么。</p>
+          </div>
+        </div>
+      </div>
+      <div class="mockup">
+        <div class="mockup-header">最终版</div>
+        <div class="mockup-body">
+          <div class="section">
+            <h3>1. 平台治理</h3>
+            <p>日志、监控、权限、审计、版本、告警、健康检查。</p>
+          </div>
+          <div class="section">
+            <h3>2. 知识治理</h3>
+            <p>指标模板、知识库、图谱审核、证据链、chunk、权重和回溯。</p>
+          </div>
+          <div class="section">
+            <h3>3. 智能体编排</h3>
+            <p>React Flow 画布、DSL、节点调试、发布、回滚和扩展节点。</p>
+          </div>
+          <div class="section">
+            <h3>4. 应用广场</h3>
+            <p>统一发布审核智能体和知识问答应用，支持直接运行。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>一期建议</h3>
+      <p>先把“模板管理 + 指标管理 + 知识录入 + 文档校验 + 报告输出”做成可现场演示的闭环，再逐步补齐编排、问答和广场。</p>
+    </div>
+  </div>
+</div>
+

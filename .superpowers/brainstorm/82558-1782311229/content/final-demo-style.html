@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>设计文件智能体 Final Demo Style</title>
+    <style>
+      :root {
+        --bg: #fbf4ef;
+        --panel: #ffffff;
+        --panel-soft: #fff8f3;
+        --ink: #2a1f1a;
+        --muted: #8f7c73;
+        --line: #edded4;
+        --primary: #d45b37;
+        --primary-dark: #b84322;
+        --primary-soft: #fff1eb;
+        --cyan: #d9824b;
+        --green: #2f9e77;
+        --amber: #d78b1f;
+        --red: #d85c4f;
+        --shadow: 0 20px 50px rgba(130, 91, 66, 0.14);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-width: 1280px;
+        min-height: 100vh;
+        color: var(--ink);
+        font-family: "Inter", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(212, 91, 55, 0.10), transparent 28%),
+          radial-gradient(circle at top right, rgba(217, 130, 75, 0.10), transparent 24%),
+          linear-gradient(135deg, #fff8f3 0%, #f8efe8 48%, #fffdfa 100%);
+      }
+      button, input, textarea { font: inherit; }
+      button { border: 0; cursor: pointer; }
+
+      .app-shell {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .topbar {
+        height: 72px;
+        display: grid;
+        grid-template-columns: 320px 1fr 320px;
+        align-items: center;
+        padding: 0 28px;
+        background: rgba(255, 250, 246, 0.92);
+        border-bottom: 1px solid var(--line);
+        backdrop-filter: blur(18px);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .brand-mark {
+        width: 44px;
+        height: 44px;
+        position: relative;
+        border-radius: 16px 16px 20px 20px;
+        background: linear-gradient(145deg, rgba(212, 91, 55, 0.22), rgba(217, 130, 75, 0.28));
+        box-shadow: inset 0 0 0 1px rgba(212, 91, 55, 0.15);
+      }
+      .brand-mark::before {
+        content: "";
+        position: absolute;
+        inset: 8px 11px;
+        border: 2px solid #d45b37;
+        border-top-color: #d9824b;
+        border-radius: 50% 50% 46% 46%;
+        transform: rotate(28deg);
+      }
+      .brand-mark span,
+      .brand-mark span::after {
+        position: absolute;
+        width: 5px;
+        height: 11px;
+        content: "";
+        background: #0d173d;
+        border-radius: 9px;
+        top: 23px;
+        left: 16px;
+      }
+      .brand-mark span::after {
+        top: 0;
+        left: 10px;
+      }
+      .brand strong {
+        display: block;
+        font-size: 20px;
+        letter-spacing: 0;
+      }
+      .brand small {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+      }
+      .main-tabs {
+        justify-self: center;
+        display: flex;
+        gap: 8px;
+        padding: 7px;
+        background: #fff3ed;
+        border: 1px solid #f0ddd1;
+        border-radius: 16px;
+      }
+      .tab {
+        height: 42px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 20px;
+        color: #7b5f52;
+        font-weight: 700;
+        border-radius: 12px;
+        background: transparent;
+      }
+      .tab.active {
+        color: #fff;
+        background: linear-gradient(135deg, #d45b37, #ef7b44);
+        box-shadow: 0 12px 26px rgba(212, 91, 55, 0.28);
+      }
+      .top-actions {
+        justify-self: end;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .icon-button,
+      .avatar {
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        color: #6d5145;
+        background: #fff;
+        border: 1px solid #ead9d0;
+        border-radius: 12px;
+      }
+      .avatar {
+        color: #fff;
+        font-weight: 800;
+        background: #4a2d22;
+      }
+
+      main {
+        flex: 1;
+        padding: 22px;
+        overflow: hidden;
+      }
+      .page {
+        height: 100%;
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr) 360px;
+        gap: 18px;
+      }
+      .panel,
+      .main-canvas,
+      .detail-panel {
+        min-height: 0;
+        background: rgba(255, 252, 249, 0.94);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        box-shadow: var(--shadow);
+      }
+      .side-panel {
+        padding: 22px 18px;
+        overflow: auto;
+      }
+      .section-label {
+        margin: 8px 8px 18px;
+        color: #ae8d7f;
+        font-weight: 800;
+      }
+      .side-item {
+        width: 100%;
+        min-height: 86px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px;
+        margin-bottom: 10px;
+        text-align: left;
+        color: var(--ink);
+        background: transparent;
+        border-radius: 18px;
+      }
+      .side-item.active {
+        background: linear-gradient(90deg, #fffaf7, #fff1e8);
+        box-shadow: inset 4px 0 0 var(--primary), 0 12px 26px rgba(130, 91, 66, 0.09);
+      }
+      .side-item strong { display: block; font-size: 16px; }
+      .side-item small { display: block; margin-top: 8px; color: var(--muted); line-height: 1.35; }
+      .item-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        flex: none;
+      }
+      .item-icon.review { background: linear-gradient(145deg, rgba(99,85,246,.22), rgba(29,205,213,.18)); }
+      .item-icon.review { background: linear-gradient(145deg, rgba(212,91,55,.22), rgba(217,130,75,.18)); }
+      .item-icon.kb { background: linear-gradient(145deg, rgba(201,120,69,.22), rgba(217,130,75,.18)); }
+      .item-icon.flow { background: linear-gradient(145deg, rgba(245,166,35,.22), rgba(212,91,55,.16)); }
+      .item-icon.ops { background: linear-gradient(145deg, rgba(216,92,79,.18), rgba(212,91,55,.14)); }
+      .side-divider {
+        height: 1px;
+        margin: 20px 8px;
+        background: linear-gradient(90deg, transparent, var(--line), transparent);
+      }
+      .ghost-button,
+      .primary-button,
+      .soft-button,
+      .icon-chip,
+      .mini-nav button,
+      .side-nav,
+      .template-card,
+      .segmented button,
+      .config-tabs button {
+        border-radius: 14px;
+      }
+      .ghost-button {
+        width: 100%;
+        height: 44px;
+        color: var(--primary-dark);
+        background: #fff3ec;
+        font-weight: 700;
+      }
+      .mini-nav {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .mini-nav button {
+        padding: 12px 14px;
+        color: #6f5a51;
+        background: #fff9f6;
+        border: 1px solid #f0e1d7;
+        display: flex;
+        justify-content: space-between;
+      }
+      .mini-nav b { color: var(--ink); }
+
+      .main-canvas {
+        padding: 18px;
+        overflow: auto;
+      }
+      .canvas-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .canvas-toolbar h2 {
+        margin: 0;
+        font-size: 22px;
+      }
+      .canvas-toolbar p {
+        margin: 6px 0 0;
+        color: var(--muted);
+      }
+      .toolbar-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .soft-button,
+      .primary-button {
+        height: 42px;
+        padding: 0 16px;
+        font-weight: 700;
+      }
+      .soft-button {
+        color: #7d6358;
+        background: #fff4ee;
+        border: 1px solid #f0ddd1;
+      }
+      .soft-button.active {
+        color: var(--primary-dark);
+        background: #ffece2;
+        border-color: #f0d1bf;
+      }
+      .primary-button {
+        color: #fff;
+        background: linear-gradient(135deg, #d45b37, #ef7b44);
+        box-shadow: 0 12px 26px rgba(212, 91, 55, 0.28);
+      }
+      .primary-button.full { width: 100%; }
+      .primary-button.small { height: 38px; }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 320px minmax(520px, 1fr) 330px;
+        gap: 18px;
+        margin-top: 16px;
+      }
+      .work-left,
+      .work-center,
+      .work-right {
+        min-height: 680px;
+        background: rgba(255, 252, 249, 0.96);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        box-shadow: var(--shadow);
+        overflow: auto;
+      }
+      .work-left { padding: 18px; }
+      .work-center { padding: 18px; }
+      .work-right { padding: 18px; }
+
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .section-head h3 {
+        margin: 0;
+        font-size: 16px;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #fff1e7;
+        color: var(--primary-dark);
+        font-size: 12px;
+      }
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .metric-card {
+        padding: 14px;
+        border: 1px solid #f0e1d7;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #fff, #fff9f5);
+      }
+      .metric-card span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .metric-card strong {
+        display: block;
+        margin-top: 4px;
+        font-size: 22px;
+      }
+      .split-box {
+        border: 1px solid #f0e1d7;
+        border-radius: 18px;
+        background: #fff;
+        padding: 14px;
+        margin-top: 12px;
+      }
+      .split-box h4 {
+        margin: 0 0 8px;
+        font-size: 14px;
+      }
+      .split-box p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .list-card {
+        display: grid;
+        gap: 10px;
+      }
+      .list-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px 14px;
+        border: 1px solid #f0e1d7;
+        border-radius: 16px;
+        background: #fff;
+      }
+      .list-item strong { display: block; font-size: 14px; }
+      .list-item small { display: block; margin-top: 6px; color: var(--muted); }
+      .status {
+        font-size: 12px;
+        padding: 5px 8px;
+        border-radius: 999px;
+        background: #fff1e7;
+        color: var(--primary-dark);
+      }
+      .status.done { background: #ecfdf5; color: var(--green); }
+      .status.warn { background: #fff7ed; color: var(--amber); }
+      .status.running { background: #eff6ff; color: #2563eb; }
+
+      .canvas-stage {
+        border: 1px solid #f0e1d7;
+        border-radius: 20px;
+        background:
+          linear-gradient(#fbf0ea 1px, transparent 1px),
+          linear-gradient(90deg, #fbf0ea 1px, transparent 1px),
+          linear-gradient(180deg, #fff, #fff8f3);
+        background-size: 28px 28px, 28px 28px, 100% 100%;
+        min-height: 640px;
+        position: relative;
+        padding: 18px;
+      }
+      .node {
+        position: absolute;
+        width: 180px;
+        border-radius: 18px;
+        border: 1px solid #f0e1d7;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15,23,42,.08);
+        padding: 14px;
+      }
+      .node b { display: block; font-size: 15px; margin-bottom: 6px; }
+      .node small { color: var(--muted); line-height: 1.45; }
+      .node.start {
+        left: 24px; top: 52px;
+        color: #fff;
+        background: linear-gradient(135deg, #d45b37, #ef7b44);
+      }
+      .node.start small { color: rgba(255,255,255,.82); }
+      .node.parse { left: 248px; top: 52px; }
+      .node.rule { left: 472px; top: 52px; }
+      .node.branch { left: 24px; top: 236px; background: #fff8eb; border-color: #f0ddb4; }
+      .node.audit { left: 248px; top: 236px; }
+      .node.report { left: 472px; top: 236px; }
+      .node.knowledge { left: 696px; top: 52px; background: #fff8f0; border-color: #f1dfd4; }
+      .node.model { left: 696px; top: 236px; background: #fff7f2; border-color: #efd9ce; }
+      .node.square { left: 696px; top: 420px; background: #fff4eb; border-color: #f2d4bf; }
+      .node.log { left: 24px; top: 420px; background: #fff5f1; border-color: #f1d0c7; }
+      .node.admin { left: 248px; top: 420px; background: #fff9f3; border-color: #f0dfc6; }
+      .node.qa { left: 472px; top: 420px; background: #fff8ee; border-color: #f1dfbf; }
+
+      .center-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .center-head h3 {
+        margin: 0;
+        font-size: 18px;
+      }
+      .sub-tabs {
+        display: flex;
+        gap: 8px;
+        padding: 8px;
+        background: #fff4ee;
+        border: 1px solid #f0ddd1;
+        border-radius: 16px;
+        margin-bottom: 14px;
+        overflow: auto;
+      }
+      .sub-tabs button {
+        height: 40px;
+        white-space: nowrap;
+        padding: 0 16px;
+        color: #7b5f52;
+        background: transparent;
+        font-weight: 700;
+      }
+      .sub-tabs button.active {
+        color: #fff;
+        background: linear-gradient(135deg, #d45b37, #ef7b44);
+        box-shadow: 0 12px 26px rgba(212, 91, 55, 0.28);
+      }
+
+      .trace-box {
+        border: 1px solid #f0e1d7;
+        background: #fff;
+        border-radius: 18px;
+        padding: 14px;
+        margin-top: 12px;
+      }
+      .trace-box h4 { margin: 0 0 10px; font-size: 14px; }
+      .trace-box p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+      .issue-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .issue {
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid #f0e1d7;
+        background: #fff;
+      }
+      .issue b { display: block; font-size: 14px; }
+      .issue small { display: block; margin-top: 6px; color: var(--muted); }
+      .issue.red { box-shadow: inset 4px 0 0 var(--red); }
+      .issue.amber { box-shadow: inset 4px 0 0 var(--amber); }
+      .issue.green { box-shadow: inset 4px 0 0 var(--green); }
+
+      .detail-tabs, .segmented, .config-tabs {
+        display: flex;
+        gap: 8px;
+        padding: 6px;
+        background: #fff4ee;
+        border: 1px solid #f0ddd1;
+        border-radius: 16px;
+      }
+      .detail-tabs button, .segmented button, .config-tabs button {
+        height: 40px;
+        padding: 0 14px;
+        background: transparent;
+        color: #7b5f52;
+        font-weight: 700;
+      }
+      .detail-tabs button.active,
+      .segmented button.active,
+      .config-tabs button.active {
+        color: #fff;
+        background: linear-gradient(135deg, #d45b37, #ef7b44);
+        box-shadow: 0 12px 26px rgba(212, 91, 55, 0.28);
+      }
+      .field-label {
+        display: block;
+        margin: 14px 0 8px;
+        color: #516184;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .field, .textarea {
+        width: 100%;
+        border: 1px solid #ead9d0;
+        border-radius: 14px;
+        padding: 12px 14px;
+        color: var(--ink);
+        background: #fff;
+      }
+      .textarea { min-height: 130px; resize: none; }
+      .param-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+        padding: 12px 14px;
+        border: 1px solid #f0e1d7;
+        border-radius: 16px;
+        background: #fff;
+      }
+      .param-card span { color: var(--muted); }
+      .param-card strong { font-size: 16px; }
+      .toggle-line {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 12px;
+        color: #516184;
+        font-weight: 700;
+      }
+      .toggle {
+        width: 48px;
+        height: 28px;
+        border-radius: 999px;
+        background: #ead7cc;
+        position: relative;
+      }
+      .toggle::after {
+        content: "";
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #fff;
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        box-shadow: 0 4px 10px rgba(15,23,42,.16);
+      }
+      .toggle.on { background: linear-gradient(135deg, #6c5df7, #493ee5); }
+      .toggle.on { background: linear-gradient(135deg, #d45b37, #ef7b44); }
+      .toggle.on::after { left: 23px; }
+
+      .hidden { display: none; }
+      .ops-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .ops-grid article {
+        border: 1px solid #f0e1d7;
+        border-radius: 18px;
+        padding: 14px;
+        background: #fff;
+      }
+      .ops-grid article b { display: block; margin-bottom: 8px; }
+      .ops-grid article span { color: var(--muted); }
+
+      .bottom-note {
+        margin-top: 14px;
+        display: flex;
+        justify-content: space-between;
+        color: #7f8ba7;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark"><span></span></div>
+          <div>
+            <strong>Design Agent</strong>
+            <small>设计文件智能体平台 · 最终版预览</small>
+          </div>
+        </div>
+
+        <nav class="main-tabs" aria-label="主导航">
+          <button class="tab active" data-page="agent">文档审核</button>
+          <button class="tab" data-page="knowledge">知识治理</button>
+          <button class="tab" data-page="studio">编排后台</button>
+        </nav>
+
+        <div class="top-actions">
+          <button class="icon-button" title="日志中心">L</button>
+          <button class="icon-button" title="模型管理">M</button>
+          <button class="icon-button" title="广场">P</button>
+          <button class="avatar">陈</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="page active" id="agent-page">
+          <aside class="panel side-panel">
+            <div class="section-label">平台能力</div>
+            <button class="side-item active" data-agent="review">
+              <span class="item-icon review"></span>
+              <span>
+                <strong>文档审核智能体</strong>
+                <small>模板约束、指标校验、证据链输出</small>
+              </span>
+            </button>
+            <button class="side-item" data-agent="knowledge">
+              <span class="item-icon kb"></span>
+              <span>
+                <strong>知识库治理</strong>
+                <small>模板、指标、图谱、chunk、证据统一管理</small>
+              </span>
+            </button>
+            <button class="side-item" data-agent="flow">
+              <span class="item-icon flow"></span>
+              <span>
+                <strong>智能体编排</strong>
+                <small>流程、节点、调试、发布、回滚</small>
+              </span>
+            </button>
+            <button class="side-item" data-agent="ops">
+              <span class="item-icon ops"></span>
+              <span>
+                <strong>监控与运营</strong>
+                <small>日志、服务健康、模型健康、任务追踪</small>
+              </span>
+            </button>
+
+            <div class="side-divider"></div>
+            <button class="ghost-button">+ 新建应用</button>
+
+            <div class="mini-nav">
+              <button>全部任务 <b>12</b></button>
+              <button>知识库 <b>8</b></button>
+              <button>广场应用 <b>6</b></button>
+            </div>
+          </aside>
+
+          <section class="main-canvas">
+            <div class="canvas-toolbar">
+              <div>
+                <h2 id="agent-title">文档审核工作台</h2>
+                <p id="agent-subtitle">上传设计文档，自动完成规范审查、问题定位、依据回溯与修改建议生成</p>
+              </div>
+              <div class="toolbar-actions">
+                <button class="soft-button active" data-agent-view="workbench">工作台</button>
+                <button class="soft-button" data-agent-view="trace">规则溯源</button>
+                <button class="soft-button">导出报告</button>
+              </div>
+            </div>
+
+            <div class="workspace">
+              <section class="work-left">
+                <div class="section-head">
+                  <h3>任务列表</h3>
+                  <span class="tag">审核中</span>
+                </div>
+                <div class="list-card">
+                  <div class="list-item">
+                    <div>
+                      <strong>软件需求规格说明书 SRS-V2.1</strong>
+                      <small>06/24 09:40 · 正在审核</small>
+                    </div>
+                    <span class="status running">进行中</span>
+                  </div>
+                  <div class="list-item">
+                    <div>
+                      <strong>软件设计说明 SDD-2026</strong>
+                      <small>06/23 18:12 · 已生成报告</small>
+                    </div>
+                    <span class="status done">已完成</span>
+                  </div>
+                  <div class="list-item">
+                    <div>
+                      <strong>标准化工作报告</strong>
+                      <small>06/22 14:26 · 待复核</small>
+                    </div>
+                    <span class="status warn">待确认</span>
+                  </div>
+                </div>
+
+                <div class="split-box">
+                  <h4>演示说明</h4>
+                  <p>这一版尽量保持 205 Demo 那种“左任务、中工作台、右结果”的产品感，页面不是汇报海报，而是一个看起来像真系统的静态预览。</p>
+                </div>
+              </section>
+
+              <section class="work-center">
+                <div class="center-head">
+                  <div>
+                    <h3 id="agent-canvas-title">文档审核工作台</h3>
+                    <p id="agent-canvas-copy">围绕格式规范、章节完整、指标一致、知识依据可追溯执行自动审查</p>
+                  </div>
+                  <div class="toolbar-actions">
+                    <button class="soft-button">自动布局</button>
+                    <button class="soft-button">运行到此节点</button>
+                  </div>
+                </div>
+
+                <div class="detail-tabs">
+                  <button class="active">流程编排</button>
+                  <button>提示词工程</button>
+                  <button>动作设计</button>
+                  <button>变量</button>
+                  <button>测试发布</button>
+                </div>
+
+                <div class="canvas-stage">
+                  <div class="node start">
+                    <b>开始</b>
+                    <small>文件、审核策略、项目上下文</small>
+                  </div>
+                  <div class="node parse">
+                    <b>文档解析</b>
+                    <small>Word / PDF / OCR / 表格结构</small>
+                  </div>
+                  <div class="node rule">
+                    <b>指标装载</b>
+                    <small>结构、样式、内容、条件必填、术语</small>
+                  </div>
+                  <div class="node branch">
+                    <b>人工确认</b>
+                    <small>低置信结果转人工复核</small>
+                  </div>
+                  <div class="node audit">
+                    <b>规则校验</b>
+                    <small>哪里错了、为什么错了、依据是什么</small>
+                  </div>
+                  <div class="node report">
+                    <b>报告生成</b>
+                    <small>审查报告、修改建议、Trace</small>
+                  </div>
+                  <div class="node knowledge">
+                    <b>知识库治理</b>
+                    <small>模板、指标、图谱、chunk、证据链</small>
+                  </div>
+                  <div class="node model">
+                    <b>模型管理</b>
+                    <small>LLM、embedding、rerank、OCR、VL、parser</small>
+                  </div>
+                  <div class="node square">
+                    <b>智能体广场</b>
+                    <small>审核应用、问答应用、统一运行入口</small>
+                  </div>
+                  <div class="node log">
+                    <b>日志中心</b>
+                    <small>用户日志、任务日志、模型日志、服务健康</small>
+                  </div>
+                  <div class="node admin">
+                    <b>权限与审计</b>
+                    <small>版本、发布、回滚、细粒度权限</small>
+                  </div>
+                  <div class="node qa">
+                    <b>知识问答</b>
+                    <small>召回 chunk、重排序、答案带引用来源</small>
+                  </div>
+                </div>
+
+                <div class="bottom-note">
+                  <span>可继续点击节点查看不同区域的“最终版感受”</span>
+                  <span>最终版预览 · v1.0</span>
+                </div>
+              </section>
+
+              <aside class="work-right">
+                <div class="section-head">
+                  <h3 id="agent-detail-title">审查结果</h3>
+                  <span class="tag">83 分</span>
+                </div>
+
+                <div class="metric-grid">
+                  <div class="metric-card"><span>知识分片</span><strong>48,216</strong></div>
+                  <div class="metric-card"><span>规则对象</span><strong>1,284</strong></div>
+                  <div class="metric-card"><span>月调用量</span><strong>36,902</strong></div>
+                  <div class="metric-card"><span>平均命中率</span><strong>87.5%</strong></div>
+                </div>
+
+                <div class="split-box">
+                  <h4>当前命中依据</h4>
+                  <p>GJB438C-章节完整性、需求可追踪性、接口一致性、术语规范。</p>
+                </div>
+
+                <div class="issue-list">
+                  <div class="issue red">
+                    <b>需求追踪缺失</b>
+                    <small>SDD 第 5 章未关联 SRS 对应需求编号</small>
+                  </div>
+                  <div class="issue amber">
+                    <b>术语不统一</b>
+                    <small>“软件配置项”存在 3 种写法</small>
+                  </div>
+                  <div class="issue green">
+                    <b>格式建议</b>
+                    <small>二级标题编号样式建议统一</small>
+                  </div>
+                </div>
+
+                <div class="trace-box">
+                  <h4>右侧说明</h4>
+                  <p>这个布局更接近你给的 205 Demo：左侧是应用导航，中间是真正的工作台，右侧是结果和配置。最终版实际做出来，质感应该就往这个方向走。</p>
+                </div>
+
+                <button class="primary-button full" style="margin-top: 12px;">生成修改建议</button>
+              </aside>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

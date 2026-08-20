@@ -1,0 +1,832 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>设计文件智能体 · Dify 风格最终预览</title>
+    <style>
+      :root {
+        --bg: #f7f8fb;
+        --panel: #ffffff;
+        --panel-soft: #fafbfe;
+        --ink: #172033;
+        --muted: #6f7a91;
+        --line: #e7ebf3;
+        --line-2: #dde3ef;
+        --primary: #4f46e5;
+        --primary-2: #7c3aed;
+        --primary-soft: #eef2ff;
+        --green: #0ea76b;
+        --amber: #d97706;
+        --red: #dc2626;
+        --blue: #2563eb;
+        --shadow: 0 18px 42px rgba(17, 24, 39, 0.08);
+        --radius: 20px;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-width: 1280px;
+        min-height: 100vh;
+        color: var(--ink);
+        font-family: Inter, PingFang SC, Microsoft YaHei, Arial, sans-serif;
+        background:
+          radial-gradient(circle at 0 0, rgba(79,70,229,.08), transparent 24%),
+          radial-gradient(circle at 100% 0, rgba(124,58,237,.06), transparent 20%),
+          linear-gradient(180deg, #fbfcff 0%, #f5f7fb 100%);
+      }
+      button, input, textarea { font: inherit; }
+      button { border: 0; cursor: pointer; }
+
+      .shell {
+        display: grid;
+        grid-template-rows: 72px 1fr;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .topbar {
+        display: grid;
+        grid-template-columns: 260px 1fr 240px;
+        align-items: center;
+        padding: 0 22px;
+        background: rgba(255,255,255,.9);
+        border-bottom: 1px solid var(--line);
+        backdrop-filter: blur(18px);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .brand-mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, var(--primary), var(--primary-2));
+        box-shadow: 0 12px 24px rgba(79,70,229,.22);
+      }
+      .brand strong { display: block; font-size: 18px; }
+      .brand small { display: block; margin-top: 2px; color: var(--muted); }
+
+      .tabs {
+        justify-self: center;
+        display: flex;
+        gap: 8px;
+        padding: 6px;
+        background: #f2f4f8;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+      }
+      .tab {
+        height: 40px;
+        padding: 0 16px;
+        border-radius: 12px;
+        color: #53607b;
+        background: transparent;
+        font-weight: 700;
+      }
+      .tab.active {
+        color: #fff;
+        background: linear-gradient(135deg, var(--primary), var(--primary-2));
+        box-shadow: 0 10px 22px rgba(79,70,229,.24);
+      }
+      .top-actions {
+        justify-self: end;
+        display: flex;
+        gap: 10px;
+      }
+      .top-actions .chip {
+        height: 38px;
+        padding: 0 12px;
+        border-radius: 12px;
+        background: #fff;
+        border: 1px solid var(--line);
+        color: #53607b;
+      }
+      .top-actions .avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        background: #1f2937;
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+      }
+
+      .body {
+        padding: 18px;
+        overflow: hidden;
+      }
+      .page {
+        height: 100%;
+        display: grid;
+        grid-template-columns: 260px minmax(0, 1fr) 360px;
+        gap: 16px;
+      }
+      .panel {
+        min-height: 0;
+        background: rgba(255,255,255,.92);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .panel-h {
+        height: 58px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 18px;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(180deg, #fff, #fbfcff);
+      }
+      .panel-h h3 { margin: 0; font-size: 15px; }
+      .panel-h small { color: var(--muted); }
+      .panel-b {
+        padding: 16px;
+        overflow: auto;
+        height: calc(100% - 58px);
+      }
+
+      .sidebar {
+        display: grid;
+        gap: 10px;
+      }
+      .searchbox {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .searchbox input {
+        flex: 1;
+        height: 40px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        padding: 0 12px;
+        background: #fff;
+        color: var(--ink);
+      }
+      .sidebar .section-title {
+        margin: 4px 6px 6px;
+        color: #97a1b5;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+      }
+      .menu-item {
+        padding: 14px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: #fff;
+        text-align: left;
+      }
+      .menu-item.active {
+        border-color: #d7dcf4;
+        background: linear-gradient(90deg, #fff, #f7f6ff);
+        box-shadow: inset 4px 0 0 var(--primary);
+      }
+      .menu-item strong { display: block; font-size: 14px; }
+      .menu-item small { display: block; margin-top: 6px; color: var(--muted); line-height: 1.5; }
+      .menu-item .badge {
+        display: inline-flex;
+        margin-top: 10px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        font-size: 11px;
+      }
+      .sidebar .quick-actions {
+        display: grid;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .sidebar .quick-actions button {
+        height: 42px;
+        padding: 0 12px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: #53607b;
+        text-align: left;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-rows: auto auto auto 1fr;
+        gap: 12px;
+        min-height: 0;
+      }
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 16px;
+        padding: 18px 18px 0;
+      }
+      .hero h2 { margin: 0; font-size: 22px; }
+      .hero p { margin: 6px 0 0; color: var(--muted); }
+      .hero .meta {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .meta span {
+        display: inline-flex;
+        align-items: center;
+        height: 30px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: #f4f6fb;
+        color: #53607b;
+        border: 1px solid var(--line);
+        font-size: 12px;
+      }
+      .overview-strip {
+        padding: 0 18px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .overview-strip .item {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: linear-gradient(180deg, #fff, #fbfcff);
+        padding: 14px;
+      }
+      .overview-strip .item span { color: var(--muted); font-size: 12px; }
+      .overview-strip .item strong { display: block; margin-top: 4px; font-size: 22px; }
+      .subtabs {
+        display: flex;
+        gap: 8px;
+        padding: 0 18px;
+      }
+      .subtabs button {
+        height: 38px;
+        padding: 0 14px;
+        border-radius: 12px;
+        background: #f5f7fb;
+        color: #53607b;
+        border: 1px solid var(--line);
+        font-weight: 700;
+      }
+      .subtabs button.active {
+        background: #fff;
+        color: var(--primary);
+        border-color: #d9def4;
+        box-shadow: 0 8px 18px rgba(17,24,39,.05);
+      }
+
+      .canvas {
+        margin: 0 18px 18px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background:
+          linear-gradient(#f7f9fc 1px, transparent 1px),
+          linear-gradient(90deg, #f7f9fc 1px, transparent 1px),
+          linear-gradient(180deg, #fff, #fbfcff);
+        background-size: 28px 28px, 28px 28px, 100% 100%;
+        min-height: 560px;
+        position: relative;
+        overflow: hidden;
+      }
+      .canvas-top {
+        position: absolute;
+        left: 16px;
+        top: 16px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        z-index: 2;
+      }
+      .canvas-top .chip {
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,.94);
+        color: #53607b;
+        font-size: 12px;
+      }
+      .node {
+        position: absolute;
+        width: 170px;
+        border-radius: 18px;
+        border: 1px solid #e8edf7;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15,23,42,.08);
+        padding: 14px;
+      }
+      .node strong { display: block; font-size: 14px; margin-bottom: 6px; }
+      .node small { color: var(--muted); line-height: 1.5; }
+      .node.primary {
+        background: linear-gradient(135deg, var(--primary), var(--primary-2));
+        color: #fff;
+        border-color: transparent;
+      }
+      .node.primary small { color: rgba(255,255,255,.8); }
+      .node.orange { background: #fff7f2; border-color: #f2dfd4; }
+      .node.green { background: #f2fff8; border-color: #d9f0e2; }
+      .node.blue { background: #f4f8ff; border-color: #d9e5ff; }
+      .node.gray { background: #fafbfe; border-color: #e5eaf5; }
+      .node.yellow { background: #fffaf0; border-color: #f3e4bb; }
+      .node.purple { background: #f9f7ff; border-color: #e4defd; }
+      .node .tag {
+        display: inline-flex;
+        margin-bottom: 8px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.16);
+        font-size: 11px;
+        color: inherit;
+      }
+      .node.primary .tag { background: rgba(255,255,255,.16); }
+      .node.start { left: 24px; top: 42px; }
+      .node.parse { left: 234px; top: 42px; }
+      .node.indicator { left: 444px; top: 42px; }
+      .node.validate { left: 444px; top: 200px; }
+      .node.review { left: 24px; top: 200px; }
+      .node.report { left: 234px; top: 358px; }
+      .node.kb { left: 654px; top: 42px; }
+      .node.models { left: 654px; top: 200px; }
+      .node.logs { left: 654px; top: 358px; }
+      .node.monitor { left: 654px; top: 516px; }
+      .node.square { left: 234px; top: 516px; }
+      .node.ops { left: 24px; top: 516px; }
+
+      .canvas-footer {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+        display: grid;
+        grid-template-columns: 1.2fr .8fr;
+        gap: 12px;
+        z-index: 2;
+      }
+      .canvas-footer .foot {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255,255,255,.94);
+        padding: 12px 14px;
+      }
+      .canvas-footer .foot h4 { margin: 0 0 6px; font-size: 13px; }
+      .canvas-footer .foot p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+
+      .line {
+        position: absolute;
+        height: 3px;
+        background: #cfd8ea;
+        border-radius: 999px;
+      }
+      .line.dash {
+        background: repeating-linear-gradient(90deg, #cfd8ea 0 10px, transparent 10px 16px);
+      }
+      .l1 { left: 194px; top: 97px; width: 40px; }
+      .l2 { left: 404px; top: 97px; width: 40px; }
+      .l3 { left: 534px; top: 126px; width: 3px; height: 48px; }
+      .l4 { left: 404px; top: 256px; width: 40px; }
+      .l5 { left: 194px; top: 256px; width: 40px; }
+      .l6 { left: 404px; top: 414px; width: 40px; }
+      .l7 { left: 614px; top: 97px; width: 40px; }
+      .l8 { left: 614px; top: 256px; width: 40px; }
+      .l9 { left: 614px; top: 414px; width: 40px; }
+
+      .right-stack {
+        display: grid;
+        gap: 12px;
+      }
+      .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .stat {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: #fff;
+        padding: 14px;
+      }
+      .stat span { color: var(--muted); font-size: 12px; }
+      .stat strong { display: block; margin-top: 4px; font-size: 22px; }
+      .right-card {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: #fff;
+        padding: 14px;
+      }
+      .right-card h4 { margin: 0 0 8px; font-size: 14px; }
+      .right-card p, .right-card li { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+      .right-card ul { margin: 0; padding-left: 18px; }
+      .issues {
+        display: grid;
+        gap: 10px;
+      }
+      .issue {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        padding: 12px 14px;
+      }
+      .issue b { display: block; font-size: 14px; }
+      .issue small { display: block; margin-top: 6px; color: var(--muted); }
+      .issue.red { box-shadow: inset 4px 0 0 var(--red); }
+      .issue.amber { box-shadow: inset 4px 0 0 var(--amber); }
+      .issue.green { box-shadow: inset 4px 0 0 var(--green); }
+
+      .config {
+        display: grid;
+        gap: 12px;
+      }
+      .config .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: #53607b;
+        font-size: 12px;
+      }
+      .config .block {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        padding: 14px;
+      }
+      .config .block h4 { margin: 0 0 8px; font-size: 14px; }
+      .config .block p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+      .button {
+        height: 42px;
+        border-radius: 12px;
+        padding: 0 14px;
+        font-weight: 700;
+      }
+      .button.primary { color: #fff; background: linear-gradient(135deg, var(--primary), var(--primary-2)); }
+      .button.soft { color: #53607b; background: #f6f7fb; border: 1px solid var(--line); }
+      .side-summary {
+        display: grid;
+        gap: 10px;
+        margin-top: 8px;
+      }
+      .side-summary .mini {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        padding: 12px 14px;
+      }
+      .side-summary .mini strong { display: block; font-size: 14px; }
+      .side-summary .mini span { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+      .module-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .module-grid .mini {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        padding: 12px 14px;
+      }
+      .module-grid .mini strong { display: block; font-size: 14px; }
+      .module-grid .mini span { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+      .footer-note {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 12px;
+        text-align: right;
+      }
+      @media (max-width: 1200px) {
+        body { min-width: 0; }
+        .shell { grid-template-rows: auto 1fr; }
+        .topbar { grid-template-columns: 1fr; gap: 12px; padding: 14px; }
+        .tabs, .top-actions { justify-self: start; }
+        .page { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark"></div>
+          <div>
+            <strong>Design Agent</strong>
+            <small>设计文件智能体 · Dify 风格最终预览</small>
+          </div>
+        </div>
+
+        <nav class="tabs" aria-label="主导航">
+          <button class="tab active">应用</button>
+          <button class="tab">知识库</button>
+          <button class="tab">编排</button>
+          <button class="tab">日志</button>
+          <button class="tab">监控</button>
+          <button class="tab">模型</button>
+          <button class="tab">广场</button>
+        </nav>
+
+        <div class="top-actions">
+          <button class="chip">发布</button>
+          <button class="chip">运行</button>
+          <div class="avatar">陈</div>
+        </div>
+      </header>
+
+      <div class="body">
+        <section class="page">
+          <aside class="panel">
+            <div class="panel-h"><h3>应用与模块</h3><small>最终版</small></div>
+            <div class="panel-b sidebar">
+              <div class="searchbox">
+                <input value="搜索应用 / 模块 / 日志 / 模型" />
+              </div>
+              <div class="section-title">Applications</div>
+              <button class="menu-item active">
+                <strong>文档审核智能体</strong>
+                <small>模板约束、指标校验、证据链输出</small>
+                <span class="badge">核心应用</span>
+              </button>
+              <button class="menu-item">
+                <strong>知识库治理</strong>
+                <small>指标模板、候选图谱、chunk、证据链</small>
+                <span class="badge">知识生产</span>
+              </button>
+              <button class="menu-item">
+                <strong>智能体编排</strong>
+                <small>节点、流程、调试、发布、回滚</small>
+                <span class="badge">可视化流程</span>
+              </button>
+              <button class="menu-item">
+                <strong>知识问答</strong>
+                <small>检索、重排、回答、引用来源</small>
+                <span class="badge">交互应用</span>
+              </button>
+              <button class="menu-item">
+                <strong>智能体广场</strong>
+                <small>统一发布审核应用与问答应用</small>
+                <span class="badge">应用市场</span>
+              </button>
+
+              <div class="section-title">Recent</div>
+              <div class="side-summary">
+                <div class="mini">
+                  <strong>最近运行</strong>
+                  <span>软件设计说明审核任务 · 09:40 · 18 个问题</span>
+                </div>
+                <div class="mini">
+                  <strong>最近发布</strong>
+                  <span>知识问答应用 v1.3 · 已发布到广场</span>
+                </div>
+              </div>
+
+              <div class="section-title">Quick Actions</div>
+              <div class="quick-actions">
+                <button>+ 新建模板</button>
+                <button>+ 新建知识库</button>
+                <button>+ 新建流程</button>
+                <button>+ 新建问答</button>
+              </div>
+            </div>
+          </aside>
+
+          <main class="panel">
+            <div class="panel-h">
+              <div>
+                <h3>审查工作台</h3>
+                <small>更接近 Dify 的轻产品风格</small>
+              </div>
+              <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;">
+                <span class="pill">模板管理</span>
+                <span class="pill">指标管理</span>
+                <span class="pill">图谱审核</span>
+                <span class="pill">规则引擎</span>
+              </div>
+            </div>
+            <div class="panel-b workspace">
+              <section class="hero">
+                <div>
+                  <h2>模板约束驱动的文档校验与知识治理平台</h2>
+                  <p>最终版目标不是单次演示，而是可持续运营的平台：把模板、指标、知识库、编排、日志、监控、模型和广场统一起来。</p>
+                </div>
+                <div class="meta">
+                  <span>日志与监控</span>
+                  <span>模型管理</span>
+                  <span>知识库管理</span>
+                  <span>智能体广场</span>
+                </div>
+              </section>
+
+              <section class="overview-strip">
+                <div class="item"><span>今日审核</span><strong>286</strong></div>
+                <div class="item"><span>知识分片</span><strong>48,216</strong></div>
+                <div class="item"><span>模型调用</span><strong>1.8M</strong></div>
+                <div class="item"><span>异常率</span><strong>1.7%</strong></div>
+              </section>
+
+              <div class="subtabs">
+                <button class="active">文档审核</button>
+                <button>知识治理</button>
+                <button>编排后台</button>
+                <button>模型管理</button>
+                <button>日志监控</button>
+                <button>智能体广场</button>
+              </div>
+
+              <section class="canvas">
+                <div class="canvas-top">
+                  <span class="chip">模板管理</span>
+                  <span class="chip">指标管理</span>
+                  <span class="chip">图谱审核</span>
+                  <span class="chip">规则引擎</span>
+                  <span class="chip">证据链 Trace</span>
+                </div>
+                <div class="line l1 dash"></div>
+                <div class="line l2 dash"></div>
+                <div class="line l3"></div>
+                <div class="line l4 dash"></div>
+                <div class="line l5 dash"></div>
+                <div class="line l6 dash"></div>
+                <div class="line l7 dash"></div>
+                <div class="line l8 dash"></div>
+                <div class="line l9 dash"></div>
+
+                <div class="node primary start">
+                  <div class="tag">入口</div>
+                  <strong>开始</strong>
+                  <small>上传文件 / 选择模板 / 绑定知识库</small>
+                </div>
+                <div class="node orange parse">
+                  <strong>文档解析</strong>
+                  <small>Word / PDF / OCR / 标题树 / 表格结构</small>
+                </div>
+                <div class="node blue indicator">
+                  <strong>指标装载</strong>
+                  <small>结构、样式、内容、条件必填、术语</small>
+                </div>
+                <div class="node yellow review">
+                  <strong>人工确认</strong>
+                  <small>低置信结果转人工复核</small>
+                </div>
+                <div class="node green validate">
+                  <strong>规则校验</strong>
+                  <small>哪里错了、为什么错了、依据是什么</small>
+                </div>
+                <div class="node gray report">
+                  <strong>报告生成</strong>
+                  <small>审查报告、修改建议、Trace</small>
+                </div>
+                <div class="node orange kb">
+                  <strong>知识库治理</strong>
+                  <small>模板、指标、图谱、chunk、证据链</small>
+                </div>
+                <div class="node purple models">
+                  <strong>模型管理</strong>
+                  <small>LLM、embedding、rerank、OCR、VL、parser</small>
+                </div>
+                <div class="node blue logs">
+                  <strong>日志中心</strong>
+                  <small>用户日志、任务日志、模型日志、服务健康</small>
+                </div>
+                <div class="node green monitor">
+                  <strong>监控中心</strong>
+                  <small>服务、任务、模型、告警、健康检查</small>
+                </div>
+                <div class="node yellow square">
+                  <strong>智能体广场</strong>
+                  <small>审核应用、问答应用、统一运行入口</small>
+                </div>
+                <div class="node gray ops">
+                  <strong>权限与审计</strong>
+                  <small>版本、发布、回滚、细粒度权限</small>
+                </div>
+
+                <div class="canvas-footer">
+                  <div class="foot">
+                    <h4>平台发布路径</h4>
+                    <p>文档审核应用、知识问答应用、编排流程和模板图谱都可以发布到智能体广场，供不同角色直接运行。</p>
+                  </div>
+                  <div class="foot">
+                    <h4>运维概览</h4>
+                    <p>日志、监控、模型健康、任务追踪、告警和权限审计统一纳管，支持管理员全局查看。</p>
+                  </div>
+                </div>
+              </section>
+
+              <div class="bottom-note">
+                <span>静态预览 · 接近最终产品形态</span>
+                <span>所有功能都在一个页面里体现出来</span>
+              </div>
+            </div>
+          </main>
+
+          <aside class="panel">
+            <div class="panel-h">
+              <h3>状态与配置</h3>
+              <small>运行态</small>
+            </div>
+            <div class="panel-b right-stack">
+              <div class="stat-grid">
+                <div class="stat"><span>知识分片</span><strong>48,216</strong></div>
+                <div class="stat"><span>规则对象</span><strong>1,284</strong></div>
+                <div class="stat"><span>月调用量</span><strong>36,902</strong></div>
+                <div class="stat"><span>平均命中率</span><strong>87.5%</strong></div>
+              </div>
+
+              <div class="right-card">
+                <h4>当前命中依据</h4>
+                <p>GJB438C-章节完整性、需求可追踪性、接口一致性、术语规范。</p>
+              </div>
+
+              <div class="right-card">
+                <h4>当前问题</h4>
+                <div class="issues">
+                  <div class="issue red">
+                    <b>需求追踪缺失</b>
+                    <small>SDD 第 5 章未关联 SRS 对应需求编号</small>
+                  </div>
+                  <div class="issue amber">
+                    <b>术语不统一</b>
+                    <small>“软件配置项”存在 3 种写法</small>
+                  </div>
+                  <div class="issue green">
+                    <b>格式建议</b>
+                    <small>二级标题编号样式建议统一</small>
+                  </div>
+                </div>
+              </div>
+
+              <div class="right-card">
+                <h4>知识库录入</h4>
+                <ul>
+                  <li>选择模板后按指标生成候选图谱</li>
+                  <li>人工审核后进入正式知识库</li>
+                  <li>证据链保留文件、页码与段落</li>
+                </ul>
+              </div>
+
+              <div class="right-card">
+                <h4>模型管理</h4>
+                <div class="config">
+                  <div class="row">
+                    <span class="pill">LLM</span>
+                    <span class="pill">Embedding</span>
+                    <span class="pill">Rerank</span>
+                    <span class="pill">OCR</span>
+                    <span class="pill">VL</span>
+                    <span class="pill">Parser</span>
+                  </div>
+                  <div class="block">
+                    <h4>模型路由</h4>
+                    <p>按节点自动选模型，支持默认、降级、停用、健康检查与调用统计。</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="right-card">
+                <h4>编排后台</h4>
+                <div class="module-grid">
+                  <div class="mini">
+                    <strong>流程编排</strong>
+                    <span>开始 / 解析 / 校验 / 输出</span>
+                  </div>
+                  <div class="mini">
+                    <strong>节点调试</strong>
+                    <span>单节点运行、全链路追踪</span>
+                  </div>
+                  <div class="mini">
+                    <strong>问答构建</strong>
+                    <span>知识库 + 检索策略 + 模型</span>
+                  </div>
+                  <div class="mini">
+                    <strong>应用广场</strong>
+                    <span>审核应用、问答应用、统一发布</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="right-card">
+                <h4>日志与监控</h4>
+                <p>用户可看自己的操作与任务日志，管理员可看全局日志、模型调用和服务健康。</p>
+              </div>
+
+              <div class="right-card">
+                <h4>智能体广场</h4>
+                <p>统一展示审核应用和知识问答应用，支持直接运行与版本发布。</p>
+              </div>
+
+              <button class="button primary">生成修改建议</button>
+            </div>
+          </aside>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>

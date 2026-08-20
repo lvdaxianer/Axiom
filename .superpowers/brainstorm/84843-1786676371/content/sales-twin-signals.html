@@ -1,0 +1,27 @@
+<h2>孪生体如何发现偏差，并触发人和 Agent</h2>
+<p class="subtitle">规则识别事实变化，Agent 分析影响，人批准关键动作。</p>
+
+<div class="section">
+  <div style="display:grid;grid-template-columns:1fr 44px 1.2fr 44px 1.1fr;align-items:center;gap:8px">
+    <div class="mockup"><div class="mockup-header">业务信号</div><div class="mockup-body">需求变更<br>报价偏差<br>关键人沉默<br>排期滑动<br>测试失败<br>客户验收异议</div></div>
+    <div style="font-size:28px;text-align:center">→</div>
+    <div class="mockup"><div class="mockup-header">DMN / 规则引擎</div><div class="mockup-body">影响范围<br>风险等级<br>责任角色<br>是否回退<br>是否需审批</div></div>
+    <div style="font-size:28px;text-align:center">→</div>
+    <div class="mockup"><div class="mockup-header">受控响应</div><div class="mockup-body">创建人工待办<br>调用影响分析 Agent<br>创建变更单<br>暂停流程<br>升级管理层</div></div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">首期应监控的五类孪生偏差</p>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="commitment" onclick="toggleSelect(this)"><div class="letter">1</div><div class="content"><h3>承诺偏差</h3><p>方案、报价或合同承诺与当前需求/交付能力不一致。</p></div></div>
+    <div class="option" data-choice="scope" onclick="toggleSelect(this)"><div class="letter">2</div><div class="content"><h3>范围偏差</h3><p>新增需求超出基线，或需求变更影响设计、任务和验收。</p></div></div>
+    <div class="option" data-choice="schedule" onclick="toggleSelect(this)"><div class="letter">3</div><div class="content"><h3>计划偏差</h3><p>关键依赖、资源或里程碑滑动，影响对客户的交付承诺。</p></div></div>
+    <div class="option" data-choice="quality" onclick="toggleSelect(this)"><div class="letter">4</div><div class="content"><h3>质量偏差</h3><p>需求覆盖不足、关键缺陷或上线准备度不满足门禁。</p></div></div>
+    <div class="option" data-choice="acceptance" onclick="toggleSelect(this)"><div class="letter">5</div><div class="content"><h3>验收偏差</h3><p>客户验收条款、测试证据与实际交付物不一致。</p></div></div>
+  </div>
+</div>
+
+<div class="section">
+  <p><strong>示例规则：</strong>“客户提出新 ERP 接口”不是直接交给研发，而是创建变更单；影响分析 Agent 关联合同范围、架构、排期、测试与验收项；若成本或周期超阈值，则先进入商务/客户审批，批准后才创建研发任务。</p>
+</div>

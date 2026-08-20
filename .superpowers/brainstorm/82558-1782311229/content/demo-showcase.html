@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>设计文件智能体演示版</title>
+    <style>
+      :root{
+        --bg:#f5f7fc;--panel:#fff;--text:#152033;--muted:#667085;--line:#dde4f0;
+        --accent:#5b5ce2;--accent2:#0ea5e9;--good:#059669;--warn:#d97706;--bad:#dc2626;
+        --shadow:0 18px 44px rgba(17,24,39,.08);--radius:22px;
+      }
+      *{box-sizing:border-box}
+      body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:
+        radial-gradient(circle at 10% 10%,rgba(91,92,226,.08),transparent 22%),
+        radial-gradient(circle at 90% 0%,rgba(14,165,233,.08),transparent 20%),
+        var(--bg);color:var(--text)}
+      .wrap{max-width:1400px;margin:0 auto;padding:24px}
+      .hero{background:linear-gradient(135deg,#0f172a,#1f2a44 50%,#243b72);color:#fff;border-radius:30px;padding:28px;box-shadow:var(--shadow)}
+      .eyebrow{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.12);color:#dbeafe;font-size:12px}
+      h1{margin:16px 0 8px;font-size:40px;line-height:1.1}
+      .hero p{margin:0;max-width:980px;color:rgba(255,255,255,.8)}
+      .hero-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:22px}
+      .kpi{padding:16px;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
+      .kpi b{display:block;font-size:22px;margin-bottom:4px}
+      .kpi span{font-size:13px;color:rgba(255,255,255,.72)}
+      .layout{display:grid;grid-template-columns:340px minmax(0,1fr) 330px;gap:16px;margin-top:18px}
+      .panel{background:var(--panel);border:1px solid rgba(17,24,39,.06);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+      .panel-h{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+      .panel-h h2{margin:0;font-size:18px}
+      .panel-b{padding:18px}
+      .tag{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:#eef2ff;color:var(--accent);font-size:12px}
+      .nav{display:grid;gap:10px}
+      .nav button,.chip-btn,.small-btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:14px;padding:12px 14px;text-align:left;cursor:pointer;transition:.18s}
+      .nav button.active,.nav button:hover,.chip-btn:hover,.small-btn:hover{border-color:#c9d2ef;transform:translateY(-1px);box-shadow:0 10px 24px rgba(15,23,42,.06)}
+      .nav button strong{display:block;font-size:14px}
+      .nav button span{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+      .stage{min-height:720px;display:flex;flex-direction:column}
+      .stage-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
+      .stage-title h2{margin:0;font-size:22px}
+      .stage-title p{margin:6px 0 0;color:var(--muted)}
+      .toolbar{display:flex;gap:10px;flex-wrap:wrap}
+      .canvas{position:relative;background:
+        linear-gradient(#f8fafc 1px, transparent 1px),
+        linear-gradient(90deg,#f8fafc 1px, transparent 1px);
+        background-size:28px 28px;border:1px solid var(--line);border-radius:22px;min-height:540px;padding:18px}
+      .flow{position:absolute;inset:0;pointer-events:none}
+      .node{position:absolute;width:175px;border:1px solid var(--line);border-radius:18px;background:#fff;padding:14px 14px 12px;box-shadow:0 10px 26px rgba(15,23,42,.08);cursor:pointer;transition:.18s}
+      .node:hover,.node.active{transform:translateY(-2px);border-color:#c8d2f0;box-shadow:0 16px 30px rgba(15,23,42,.12)}
+      .node .mini{font-size:12px;color:#64748b;margin-bottom:8px}
+      .node b{display:block;font-size:15px;margin-bottom:6px}
+      .node p{margin:0;font-size:12px;color:var(--muted)}
+      .node.start{left:26px;top:48px;background:linear-gradient(180deg,#5b5ce2,#6c72ff);color:#fff;border-color:#5b5ce2}
+      .node.start .mini,.node.start p{color:rgba(255,255,255,.82)}
+      .node.parse{left:238px;top:48px}
+      .node.rule{left:450px;top:48px}
+      .node.audit{left:450px;top:218px}
+      .node.report{left:238px;top:388px}
+      .node.branch{left:26px;top:218px;background:#fff8eb;border-color:#f2dfb6}
+      .side-block{display:grid;gap:12px}
+      .info{padding:16px;border:1px solid var(--line);border-radius:18px;background:#fff}
+      .info h3{margin:0 0 8px;font-size:15px}
+      .info p,.info li{margin:0;color:var(--muted);font-size:13px;line-height:1.65}
+      .info ul{margin:0;padding-left:18px}
+      .progress{display:grid;gap:10px}
+      .bar{height:10px;border-radius:999px;background:#eef2ff;overflow:hidden}
+      .bar i{display:block;height:100%;width:50%;border-radius:inherit;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+      .alert{border-left:4px solid var(--warn);background:#fffaf0;padding:12px 14px;border-radius:14px;color:#8a5b11;font-size:13px}
+      .report{display:grid;gap:12px}
+      .issue{border:1px solid var(--line);border-radius:16px;padding:14px;background:#fff}
+      .issue .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+      .issue .top b{font-size:14px}
+      .issue small{display:inline-flex;padding:4px 8px;border-radius:999px;background:#eef2ff;color:var(--accent);font-size:11px}
+      .issue p{margin:8px 0 0;color:var(--muted);font-size:13px}
+      .issue.good small{background:#ecfdf5;color:var(--good)}
+      .issue.warn small{background:#fff7ed;color:var(--warn)}
+      .issue.bad small{background:#fef2f2;color:var(--bad)}
+      .footer-note{margin-top:16px;color:var(--muted);font-size:12px;text-align:right}
+      @media (max-width: 1180px){.layout{grid-template-columns:1fr}.stage{min-height:auto}}
+      @media (max-width: 760px){.hero-grid{grid-template-columns:1fr 1fr}.node{position:relative;left:auto!important;top:auto!important;width:auto;margin-bottom:10px}}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="hero">
+        <div class="eyebrow">静态 HTML 演示版 · 可点击切换</div>
+        <h1>模板约束驱动的文档校验平台</h1>
+        <p>这是一份可以直接打开演示的静态页面。点击左侧版本、中央流程节点和右侧问题卡，能看到“模板入库 - 指标约束 - 图谱审核 - 文档校验 - 报告输出”的完整闭环。</p>
+        <div class="hero-grid">
+          <div class="kpi"><b id="kpiA">6</b><span>一期核心能力</span></div>
+          <div class="kpi"><b id="kpiB">4</b><span>平台底座能力</span></div>
+          <div class="kpi"><b id="kpiC">8</b><span>节点运行状态</span></div>
+          <div class="kpi"><b id="kpiD">100%</b><span>静态可打开</span></div>
+        </div>
+      </section>
+
+      <div class="layout">
+        <aside class="panel">
+          <div class="panel-h"><h2>版本切换</h2><span class="tag" id="versionTag">演示版</span></div>
+          <div class="panel-b side-block">
+            <div class="nav">
+              <button class="active" data-version="demo" onclick="setVersion('demo', this)">
+                <strong>演示版</strong><span>快速出成果，能现场讲得清、跑得通。</span>
+              </button>
+              <button data-version="final" onclick="setVersion('final', this)">
+                <strong>最终版</strong><span>补齐平台治理、编排、广场和监控。</span>
+              </button>
+            </div>
+            <div class="info">
+              <h3>一期范围</h3>
+              <ul id="scopeList">
+                <li>模板管理</li>
+                <li>指标管理</li>
+                <li>知识库录入</li>
+                <li>图谱审核</li>
+                <li>文档校验</li>
+                <li>报告输出</li>
+              </ul>
+            </div>
+            <div class="alert" id="phaseTip">建议先把一条可见价值链路做尖，再补平台化能力。</div>
+          </div>
+        </aside>
+
+        <main class="panel stage">
+          <div class="panel-h">
+            <div class="stage-title">
+              <h2 id="stageTitle">演示闭环</h2>
+              <p id="stageDesc">从模板入库到文档校验，一条链路跑通即可做现场展示。</p>
+            </div>
+            <div class="toolbar">
+              <button class="small-btn" onclick="setScenario('template')">模板入库</button>
+              <button class="small-btn" onclick="setScenario('validate')">文档校验</button>
+              <button class="small-btn" onclick="setScenario('qa')">知识问答</button>
+            </div>
+          </div>
+          <div class="panel-b">
+            <div class="canvas">
+              <svg class="flow" viewBox="0 0 1100 620" preserveAspectRatio="none" aria-hidden="true">
+                <path id="line1" d="M201 109 C235 109 204 109 238 109" stroke="#cfd8ea" stroke-width="4" fill="none" stroke-dasharray="10 8"/>
+                <path id="line2" d="M413 109 C448 109 415 109 450 109" stroke="#cfd8ea" stroke-width="4" fill="none" stroke-dasharray="10 8"/>
+                <path id="line3" d="M538 139 C538 176 538 180 538 218" stroke="#cfd8ea" stroke-width="4" fill="none" stroke-dasharray="10 8"/>
+                <path id="line4" d="M450 262 C415 262 378 262 343 262" stroke="#cfd8ea" stroke-width="4" fill="none" stroke-dasharray="10 8"/>
+                <path id="line5" d="M238 338 C238 360 238 364 238 388" stroke="#cfd8ea" stroke-width="4" fill="none" stroke-dasharray="10 8"/>
+              </svg>
+              <div class="node start active" data-node="start" onclick="focusNode('start', this)">
+                <div class="mini">1. 入口</div>
+                <b>开始</b>
+                <p>上传文件 / 选择模板 / 绑定知识库</p>
+              </div>
+              <div class="node parse" data-node="parse" onclick="focusNode('parse', this)">
+                <div class="mini">2. 解析</div>
+                <b>文档解析</b>
+                <p>Word / PDF / OCR / 标题树 / 表格结构</p>
+              </div>
+              <div class="node rule" data-node="rule" onclick="focusNode('rule', this)">
+                <div class="mini">3. 约束</div>
+                <b>指标装载</b>
+                <p>样式 / 结构 / 术语 / 条件必填</p>
+              </div>
+              <div class="node audit" data-node="audit" onclick="focusNode('audit', this)">
+                <div class="mini">4. 判定</div>
+                <b>规则校验</b>
+                <p>输出哪里错了、为什么错了、依据是什么</p>
+              </div>
+              <div class="node branch" data-node="branch" onclick="focusNode('branch', this)">
+                <div class="mini">5. 分支</div>
+                <b>人工确认</b>
+                <p>低置信结果转人工复核</p>
+              </div>
+              <div class="node report" data-node="report" onclick="focusNode('report', this)">
+                <div class="mini">6. 输出</div>
+                <b>报告生成</b>
+                <p>审查报告 / 修改建议 / Trace</p>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside class="panel">
+          <div class="panel-h"><h2>演示结果</h2><span class="tag" id="resultTag">确定违规</span></div>
+          <div class="panel-b">
+            <div class="progress">
+              <div class="info">
+                <h3 id="nodeTitle">文档校验节点</h3>
+                <p id="nodeDesc">点击左侧节点可查看对应步骤说明。这里展示的是静态页面里的轻交互效果。</p>
+              </div>
+              <div class="info">
+                <h3>流程进度</h3>
+                <div class="bar"><i id="progressBar" style="width:78%"></i></div>
+                <p id="progressText" style="margin-top:8px">当前已完成：文档解析、指标装载、规则校验</p>
+              </div>
+            </div>
+            <div class="report" style="margin-top:12px">
+              <div class="issue bad" onclick="setIssue('bad', this)">
+                <div class="top"><b>缺少“接口设计”章节</b><small>严重</small></div>
+                <p>依据模板要求该章节必填，但当前文档未识别到对应一级章节。</p>
+              </div>
+              <div class="issue warn" onclick="setIssue('warn', this)">
+                <div class="top"><b>一级标题字号不一致</b><small>待确认</small></div>
+                <p>当前识别到的字号与模板要求存在差异，建议人工复核原文版式。</p>
+              </div>
+              <div class="issue good" onclick="setIssue('good', this)">
+                <div class="top"><b>术语统一通过</b><small>通过</small></div>
+                <p>文档中的关键术语与模板术语库一致，未发现混用。</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="footer-note">静态 HTML 演示页 · 可直接本地打开汇报</div>
+    </div>
+
+    <script>
+      const versions = {
+        demo: {
+          tag: '演示版',
+          title: '演示闭环',
+          desc: '先做一条完整且可解释的校验流程，用于现场演示和客户汇报。',
+          scope: ['模板管理','指标管理','知识库录入','图谱审核','文档校验','报告输出'],
+          tip: '建议先把一条可见价值链路做尖，再补平台化能力。',
+          kpiA: '6',
+          kpiB: '4',
+          resultTag: '确定违规',
+          progress: '78%',
+          progressText: '当前已完成：文档解析、指标装载、规则校验',
+        },
+        final: {
+          tag: '最终版',
+          title: '平台治理',
+          desc: '补齐日志监控、模型管理、编排、问答、广场和权限审计，形成完整平台。',
+          scope: ['日志与监控','模型管理','知识库治理','智能体编排','知识问答','智能体广场'],
+          tip: '最终版关注平台化、可运营和可扩展，不只是一条演示链路。',
+          kpiA: '6',
+          kpiB: '7',
+          resultTag: '平台版',
+          progress: '95%',
+          progressText: '当前已完成：底座治理、编排、广场、问答',
+        }
+      };
+      const nodes = {
+        start: ['入口', '上传文件 / 选择模板 / 绑定知识库'],
+        parse: ['解析', 'Word / PDF / OCR / 标题树 / 表格结构'],
+        rule: ['约束', '样式 / 结构 / 术语 / 条件必填'],
+        audit: ['判定', '输出哪里错了、为什么错了、依据是什么'],
+        branch: ['分支', '低置信结果转人工复核'],
+        report: ['输出', '审查报告 / 修改建议 / Trace'],
+      };
+      const scenarios = {
+        template: { title: '模板入库演示', desc: '展示模板上传、指标抽取、候选图谱生成和人工审核。', progress: '36%', progressText: '当前已完成：模板上传、候选抽取' },
+        validate: { title: '文档校验演示', desc: '展示选择模板后，按指标做结构、样式、条件必填与术语校验。', progress: '78%', progressText: '当前已完成：文档解析、指标装载、规则校验' },
+        qa: { title: '知识问答演示', desc: '展示从知识库召回 chunk、重排序并生成带依据的回答。', progress: '62%', progressText: '当前已完成：召回、重排、答案生成' },
+      };
+      function setVersion(key, btn){
+        document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        const v = versions[key];
+        document.getElementById('versionTag').textContent = v.tag;
+        document.getElementById('stageTitle').textContent = v.title;
+        document.getElementById('stageDesc').textContent = v.desc;
+        document.getElementById('scopeList').innerHTML = v.scope.map(i=>`<li>${i}</li>`).join('');
+        document.getElementById('phaseTip').textContent = v.tip;
+        document.getElementById('kpiA').textContent = v.kpiA;
+        document.getElementById('kpiB').textContent = v.kpiB;
+        document.getElementById('resultTag').textContent = v.resultTag;
+        document.getElementById('progressBar').style.width = v.progress;
+        document.getElementById('progressText').textContent = v.progressText;
+      }
+      function focusNode(key, el){
+        document.querySelectorAll('.node').forEach(n=>n.classList.remove('active'));
+        el.classList.add('active');
+        const n = nodes[key];
+        document.getElementById('nodeTitle').textContent = `节点：${n[0]}`;
+        document.getElementById('nodeDesc').textContent = n[1];
+      }
+      function setScenario(key){
+        const s = scenarios[key];
+        document.getElementById('stageTitle').textContent = s.title;
+        document.getElementById('stageDesc').textContent = s.desc;
+        document.getElementById('progressBar').style.width = s.progress;
+        document.getElementById('progressText').textContent = s.progressText;
+      }
+      function setIssue(level, el){
+        document.querySelectorAll('.issue').forEach(i=>i.style.outline='none');
+        el.style.outline = `2px solid ${level === 'bad' ? '#dc2626' : level === 'warn' ? '#d97706' : '#059669'}`;
+      }
+    </script>
+  </body>
+</html>

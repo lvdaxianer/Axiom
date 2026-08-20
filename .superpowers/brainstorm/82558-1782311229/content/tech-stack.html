@@ -1,0 +1,70 @@
+<h2>技术选型建议</h2>
+<p class="subtitle">按“演示版先出成果、最终版再平台化”的思路，先选能快速落地、又不限制后续扩展的技术栈。</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">推荐技术栈</div>
+    <div class="mockup-body">
+      <div class="section">
+        <div class="label">前端</div>
+        <p><strong>React + TypeScript + React Flow</strong><br>负责管理台、编排画布、审核台、广场和运营页。</p>
+      </div>
+      <div class="section">
+        <div class="label">后端</div>
+        <p><strong>Python FastAPI</strong><br>负责文档解析、校验引擎、知识录入、模型编排与 API 聚合。</p>
+      </div>
+      <div class="section">
+        <div class="label">AI 服务</div>
+        <p><strong>独立模型网关 + 推理服务</strong><br>统一接入 LLM、embedding、rerank、OCR、VL、parser。</p>
+      </div>
+      <div class="section">
+        <div class="label">任务与异步</div>
+        <p><strong>Redis + Celery / RQ</strong><br>适合文档解析、录入、校验、重算、批量任务。</p>
+      </div>
+      <div class="section">
+        <div class="label">存储</div>
+        <p><strong>PostgreSQL + MinIO + 向量库</strong><br>存配置、日志、结果、文件和向量索引。</p>
+      </div>
+      <div class="section">
+        <div class="label">检索</div>
+        <p><strong>PostgreSQL / pgvector 或 Milvus</strong><br>先轻后重，首期可用 pgvector，后续再切专业向量库。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">为什么这么选</div>
+    <div class="mockup-body">
+      <div class="section">
+        <h3>1. 前端适合自研画布</h3>
+        <p>React Flow 能快速支撑拖拽编排、节点配置、版本编辑和调试态展示，不需要一开始重造画布底层。</p>
+      </div>
+      <div class="section">
+        <h3>2. 后端适合拆成服务</h3>
+        <p>FastAPI 对 AI 任务、文件处理、异步接口和结构化返回很友好，适合做文档校验和知识治理中台。</p>
+      </div>
+      <div class="section">
+        <h3>3. 模型层要独立</h3>
+        <p>把模型当作可替换能力，而不是写死在业务里，后面才能做模型路由、降级和监控。</p>
+      </div>
+      <div class="section">
+        <h3>4. 存储要分层</h3>
+        <p>文件、结果、配置、日志、向量索引分开存，后面审计、追溯、回滚和查问题才稳。</p>
+      </div>
+      <div class="section">
+        <h3>5. 检索先轻后重</h3>
+        <p>首期先用 pgvector 就能跑出闭环，后面再根据规模切到 Milvus 也不影响上层逻辑。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>不建议首期重押的东西</h3>
+  <p>不建议一开始就把工作流引擎、知识图谱引擎、权限中心、消息中间件、向量库、模型网关全部换成大而全的一体化产品。这样集成复杂度会很高，反而不利于快速出成果。</p>
+</div>
+
+<div class="section">
+  <h3>首期技术边界</h3>
+  <p>先把“模板录入 - 指标抽取 - 知识审核 - 文档校验 - 结果输出”跑通，平台化能力同步预留接口，但不要求一次做满。</p>
+</div>

@@ -1,0 +1,43 @@
+<h2>一个孪生体，五类角色工作台</h2>
+<p class="subtitle">每个角色只看自己需要决策的视图；Agent 生成草稿和检查，正式交接通过版本化工件完成。</p>
+
+<div class="section">
+  <div style="display:grid;grid-template-columns:1.25fr 1fr 1.35fr;gap:10px;margin-bottom:10px;padding:12px;border:1px solid #d7e3ef;border-radius:8px">
+    <div><span class="label">销售 / 售前</span><br><strong>客户价值与成交推进</strong></div>
+    <div><span class="label">Agent</span><br>访谈、需求、方案、估算</div>
+    <div><span class="label">交接物</span><br><strong>需求基线 + 方案承诺 + 交付前提</strong></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1.25fr 1fr 1.35fr;gap:10px;margin-bottom:10px;padding:12px;border:1px solid #d7e3ef;border-radius:8px">
+    <div><span class="label">产品 / 架构 / 项目</span><br><strong>范围可实现性与交付设计</strong></div>
+    <div><span class="label">Agent</span><br>产品、架构、计划、风险</div>
+    <div><span class="label">交接物</span><br><strong>产品规格 + ADR + 项目交付基线</strong></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1.25fr 1fr 1.35fr;gap:10px;margin-bottom:10px;padding:12px;border:1px solid #d7e3ef;border-radius:8px">
+    <div><span class="label">研发 / 测试</span><br><strong>实现质量与验收覆盖</strong></div>
+    <div><span class="label">Agent</span><br>研发、集成、测试、安全</div>
+    <div><span class="label">交接物</span><br><strong>发布候选 + 测试证据 + 需求覆盖矩阵</strong></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1.25fr 1fr 1.35fr;gap:10px;padding:12px;border:1px solid #d7e3ef;border-radius:8px">
+    <div><span class="label">交付 / 客户成功</span><br><strong>上线结果与客户价值兑现</strong></div>
+    <div><span class="label">Agent</span><br>实施、培训、验收、复盘</div>
+    <div><span class="label">交接物</span><br><strong>上线证据 + 验收结论 + 遗留项</strong></div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">所有工作台共享的项目孪生头部</p>
+  <div class="mockup">
+    <div class="mockup-header">项目：华东区域销售数字孪生 | 当前阶段：方案评审</div>
+    <div class="mockup-body" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;text-align:center">
+      <div><strong>范围</strong><br>基线 v1.0</div>
+      <div><strong>价值</strong><br>预测提升 15%</div>
+      <div><strong>交付</strong><br>风险：中</div>
+      <div><strong>质量</strong><br>未开始</div>
+      <div><strong>证据</strong><br>12 项</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p><strong>交接规则：</strong>销售不能只把聊天记录交给产品；必须交付已确认需求和承诺前提。研发不能只回报“完成”；必须交付可追溯到验收条款的测试证据。任何角色发现上游承诺不成立，都创建影响项并触发回退或变更。</p>
+</div>

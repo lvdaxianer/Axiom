@@ -1,0 +1,32 @@
+<h2>销售数字孪生：Flowable + Pi 技术架构</h2>
+<p class="subtitle">Flowable 控制业务流程，Pi 执行专业 Agent，项目事实库保存唯一可信状态。</p>
+
+<div class="section">
+  <div style="display:grid;grid-template-columns:1.1fr 1.3fr 1.1fr;gap:12px;align-items:stretch">
+    <div class="mockup"><div class="mockup-header">业务与交互层</div><div class="mockup-body"><strong>角色工作台</strong><br>销售 / 售前<br>产品 / 架构 / 项目<br>研发 / 测试 / 交付<br><br><strong>客户门户</strong><br>需求确认、方案评审、验收签收</div></div>
+    <div class="mockup"><div class="mockup-header">控制平面</div><div class="mockup-body"><strong>Flowable BPMN</strong><br>阶段、回退、并行、超时、人工任务<br><br><strong>Flowable DMN</strong><br>业务线路由、审批等级、风险阈值<br><br><strong>变更与审计服务</strong></div></div>
+    <div class="mockup"><div class="mockup-header">执行平面</div><div class="mockup-body"><strong>Agent Gateway</strong><br>任务包、幂等、权限、回调<br><br><strong>Pi Agent Runtime</strong><br>需求 / 方案 / 架构 / 测试 / 交付 Agent<br><br><strong>工具网关</strong><br>知识库、CRM、Git、测试、运维</div></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">事实与证据平面：不依赖任何 Agent 会话</div>
+    <div class="mockup-body" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;text-align:center">
+      <div><strong>项目孪生</strong><br>Opportunity<br>Delivery Twin</div>
+      <div><strong>业务对象</strong><br>需求<br>方案 / 合同 / 任务</div>
+      <div><strong>版本基线</strong><br>v1.0 / v1.1<br>变更谱系</div>
+      <div><strong>证据</strong><br>评审<br>测试 / 部署 / 签收</div>
+      <div><strong>事件</strong><br>偏差<br>Agent 完成 / 审批</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">关键调用链</p>
+  <p><strong>BPMN 节点激活</strong> → Flowable 创建 Agent Job → Agent Gateway 领取并创建幂等任务 → Pi 运行受限角色 Agent → 写入草稿和证据 → Gateway 回传结果 → Flowable 进入审批、回退或下一阶段。</p>
+</div>
+
+<div class="section">
+  <p><strong>边界原则：</strong>Flowable 决定“流程走哪一步”，DMN 决定“适用哪条业务规则”，Pi 决定“如何理解和生成内容”，事实库决定“项目当前到底是什么状态”。</p>
+</div>

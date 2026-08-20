@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>三维本体证明图</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#edf2f3;color:#172226;font:14px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}.page{max-width:1380px;margin:0 auto;padding:24px}.titlebar{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}.titlebar h1{font-size:22px;margin:0}.titlebar p{margin:5px 0 0;color:#5e7077}.mode{border:1px solid #b9cfbd;border-radius:4px;background:#f1f8f2;color:#21653b;padding:5px 9px;font-size:12px}.scene-shell{display:grid;grid-template-columns:minmax(0,1fr) 320px;min-height:620px;background:#fff;border:1px solid #d5dfe2;border-radius:6px;overflow:hidden}.stage{position:relative;min-height:620px;background:#122125;overflow:hidden}.stage canvas{position:absolute;inset:0;width:100%;height:100%}.stage:after{content:"拖拽旋转  ·  滚轮缩放  ·  点击节点查看语义";position:absolute;left:16px;bottom:14px;color:#aec0c4;font-size:12px;pointer-events:none}.node-label{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;padding:3px 6px;border-radius:3px;background:rgba(15,29,33,.86);border:1px solid #496068;color:#f1f7f7;font-size:11px;pointer-events:none}.node-label.active{border-color:#f0c66c;color:#fff7dd}.panel{display:flex;flex-direction:column;background:#fff}.panel section{padding:18px;border-bottom:1px solid #e1e8ea}.panel h2{font-size:14px;margin:0 0 10px}.panel p{margin:0;color:#53676e;font-size:13px}.node-detail{min-height:172px}.node-detail .type{display:inline-block;border-radius:3px;padding:3px 7px;margin-bottom:9px;background:#e8f0f2;color:#33616f;font-size:11px}.node-detail h3{font-size:17px;margin:0 0 7px}.relation-list{display:grid;gap:8px}.relation{display:grid;grid-template-columns:1fr 22px 1fr;gap:4px;align-items:center;font-size:11px}.relation span{padding:7px 6px;border:1px solid #d8e3e6;border-radius:3px;text-align:center;background:#f8fbfb}.relation i{font-style:normal;text-align:center;color:#61767d;font-size:10px}.legend{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px}.legend div{display:flex;gap:6px;align-items:center}.chip{width:9px;height:9px;border-radius:50%;display:inline-block}.explain{margin-top:auto;background:#f7faf9}.explain strong{font-size:13px}.explain p{margin-top:5px}.fallback{position:absolute;inset:0;display:grid;place-items:center;color:#d7e4e6;font-size:13px}@media(max-width:820px){.page{padding:14px}.scene-shell{grid-template-columns:1fr}.stage{min-height:520px}.panel{display:grid;grid-template-columns:1fr 1fr}.panel section{border-right:1px solid #e1e8ea}.node-detail{min-height:0}.explain{margin-top:0}}@media(max-width:520px){.titlebar{display:block}.mode{display:inline-block;margin-top:8px}.panel{display:block}.panel section{border-right:0}.stage{min-height:440px}}
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="titlebar"><div><h1>本体证明空间</h1><p>从客户问题到操作建议的语义路径，按概念类型在三维空间中组织。</p></div><span class="mode">知识工程视图 · 已发布版本 2026.01.0</span></header>
+  <section class="scene-shell">
+    <div class="stage" id="stage"><div class="fallback" id="fallback">正在加载三维关系视图...</div></div>
+    <aside class="panel">
+      <section class="node-detail" id="detail"><span class="type">Action</span><h3>重新上传园区 TJS</h3><p>规则 <b>R-SCENE-RESOURCE-001</b> 推荐的修复动作。该节点由已匹配根因推导得到。</p></section>
+      <section><h2>当前路径的本体关系</h2><div class="relation-list"><div class="relation"><span>SupportCase</span><i>hasSymptom →</i><span>GroundModelNotDisplayed</span></div><div class="relation"><span>SupportCase</span><i>hasMigration →</i><span>4.2.2 → 4.2.3</span></div><div class="relation"><span>Rule</span><i>derives →</i><span>SceneResourceStateIncomplete</span></div><div class="relation"><span>Cause</span><i>hasRemediation →</i><span>ReuploadParkTjs</span></div><div class="relation"><span>Evidence</span><i>supports →</i><span>Rule</span></div></div></section>
+      <section><h2>节点图例</h2><div class="legend"><div><i class="chip" style="background:#3db7c4"></i>输入事实</div><div><i class="chip" style="background:#9c77d1"></i>业务规则</div><div><i class="chip" style="background:#e69a55"></i>根因概念</div><div><i class="chip" style="background:#41ae77"></i>修复动作</div><div><i class="chip" style="background:#e8c35c"></i>原文证据</div></div></section>
+      <section class="explain"><strong>使用边界</strong><p>这是“展开推理依据”的高级视图。客户默认仍阅读文字结论和步骤，避免为了展示图谱而增加解决问题的负担。</p></section>
+    </aside>
+  </section>
+</main>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/controls/OrbitControls.js';
+const stage=document.getElementById('stage'), fallback=document.getElementById('fallback'), detail=document.getElementById('detail');
+const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); stage.appendChild(renderer.domElement); fallback.remove();
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x122125); const camera=new THREE.PerspectiveCamera(44,1,.1,100); camera.position.set(7.5,5.4,11);
+const controls=new OrbitControls(camera,renderer.domElement); controls.enableDamping=true; controls.minDistance=7; controls.maxDistance=20; controls.target.set(0,0,0);
+scene.add(new THREE.AmbientLight(0xffffff,1.8)); const key=new THREE.DirectionalLight(0xbde4df,2.1);key.position.set(4,7,6);scene.add(key);
+const grid=new THREE.GridHelper(18,18,0x2b474d,0x203a40);grid.position.y=-3.3;scene.add(grid);
+const nodes=[
+ {id:'symptom',label:'Symptom · 地面模型不显示',type:'Symptom',color:0x3db7c4,pos:[-4,1.2,0],text:'客户问题解析后的已标准化现象。通过 hasSymptom 关联到本次 SupportCase。'},
+ {id:'migration',label:'Migration · 4.2.2 → 4.2.3',type:'Migration',color:0x3db7c4,pos:[-3,-1.7,-1.2],text:'客户明确提供的版本迁移事实，不由模型补全。'},
+ {id:'rule',label:'Rule · R-SCENE-RESOURCE-001',type:'Rule',color:0x9c77d1,pos:[0,.3,0],text:'已审核、已发布的诊断规则。只有条件全匹配时才进入这条证明路径。'},
+ {id:'cause',label:'Cause · 场景资源状态不完整',type:'Cause',color:0xe69a55,pos:[3,1.3,.2],text:'由规则导出的诊断根因。它不是向量相似度或模型猜测得到的结论。'},
+ {id:'action',label:'Action · 重新上传园区 TJS',type:'Action',color:0x41ae77,pos:[4,-1.5,-.2],text:'规则推荐的修复动作，前端同时显示操作步骤和适用条件。'},
+ {id:'evidence',label:'Evidence · FAQ-row-6428',type:'Evidence',color:0xe8c35c,pos:[.2,-2.2,2.7],text:'支持规则的原文证据。点击后应可回到该文档片段与上下文。'}
+];
+const meshes=[], labels=[]; const sphereGeometry=new THREE.SphereGeometry(.43,28,20);
+for(const node of nodes){const material=new THREE.MeshStandardMaterial({color:node.color,roughness:.35,metalness:.16});const mesh=new THREE.Mesh(sphereGeometry,material);mesh.position.set(...node.pos);mesh.userData=node;scene.add(mesh);meshes.push(mesh);const ring=new THREE.Mesh(new THREE.TorusGeometry(.58,.025,8,32),new THREE.MeshBasicMaterial({color:node.color}));ring.rotation.x=Math.PI/2;ring.position.copy(mesh.position);scene.add(ring);const label=document.createElement('div');label.className='node-label';label.textContent=node.label;stage.appendChild(label);labels.push({label,mesh});}
+const edges=[['symptom','rule'],['migration','rule'],['rule','cause'],['cause','action'],['evidence','rule']]; const byId=Object.fromEntries(nodes.map(n=>[n.id,n]));
+for(const [from,to] of edges){const a=new THREE.Vector3(...byId[from].pos),b=new THREE.Vector3(...byId[to].pos);const geo=new THREE.BufferGeometry().setFromPoints([a,b]);scene.add(new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x7fa3a7,transparent:true,opacity:.85})));}
+const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();let selected=meshes[4];
+function select(mesh){selected=mesh;const n=mesh.userData;detail.innerHTML=`<span class="type">${n.type}</span><h3>${n.label.split(' · ')[1]}</h3><p>${n.text}</p>`;labels.forEach(({label,mesh:m})=>label.classList.toggle('active',m===mesh));}
+renderer.domElement.addEventListener('pointerup',event=>{const r=renderer.domElement.getBoundingClientRect();pointer.x=(event.clientX-r.left)/r.width*2-1;pointer.y=-(event.clientY-r.top)/r.height*2+1;raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects(meshes)[0];if(hit)select(hit.object)});select(selected);
+function resize(){const w=stage.clientWidth,h=stage.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}new ResizeObserver(resize).observe(stage);resize();
+const vector=new THREE.Vector3();function animate(){requestAnimationFrame(animate);controls.update();for(const {label,mesh} of labels){vector.copy(mesh.position).project(camera);label.style.left=`${(vector.x*.5+.5)*stage.clientWidth}px`;label.style.top=`${(-vector.y*.5+.5)*stage.clientHeight}px`;label.style.display=vector.z>1?'none':'block';}renderer.render(scene,camera)}animate();
+</script>
+</body>
+</html>

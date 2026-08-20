@@ -1,0 +1,136 @@
+<h2>平台规划对比</h2>
+<p class="subtitle">左侧是适合现场演示、快速出成果的版本，右侧是完整交付版本。先看整体边界，再决定一期怎么收。</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">演示版 / 快速出成果</div>
+    <div class="mockup-body">
+      <div class="section">
+        <div class="label">目标</div>
+        <p>快速跑通一条可见价值链路：模板入库 - 指标约束 - 文档校验 - 报告输出。</p>
+      </div>
+      <div class="section">
+        <h3>核心模块</h3>
+        <div class="options" data-multiselect>
+          <div class="option">
+            <div class="content">
+              <strong>指标管理</strong>
+              <p>按模板类型维护结构、样式、术语等指标。</p>
+            </div>
+          </div>
+          <div class="option">
+            <div class="content">
+              <strong>知识库录入</strong>
+              <p>上传模板文档，按指标生成候选知识和证据。</p>
+            </div>
+          </div>
+          <div class="option">
+            <div class="content">
+              <strong>图谱审核台</strong>
+              <p>人工确认候选规则、关系和依据后发布。</p>
+            </div>
+          </div>
+          <div class="option">
+            <div class="content">
+              <strong>文档校验智能体</strong>
+              <p>选择模板后执行结构校验并输出问题清单。</p>
+            </div>
+          </div>
+          <div class="option">
+            <div class="content">
+              <strong>结果报告</strong>
+              <p>输出哪里错了、为什么错了、依据是什么。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <h3>可演示亮点</h3>
+        <p>支持上传一份模板生成候选知识，审核后再拿另一份文档按模板校验，现场看到结构化问题报告。</p>
+      </div>
+      <div class="section">
+        <h3>可暂缓</h3>
+        <p>多模型路由、复杂编排、知识问答广场、全量运维大屏、跨文档一致性深校验。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">最终版 / 完整平台</div>
+    <div class="mockup-body">
+      <div class="section">
+        <div class="label">目标</div>
+        <p>形成面向模板治理、文档审核、知识问答、智能体编排和平台运营的一体化系统。</p>
+      </div>
+      <div class="section">
+        <h3>完整模块</h3>
+        <div class="options" data-multiselect>
+          <div class="option">
+            <div class="content">
+              <strong>日志与运行监控</strong>
+              <p>用户维度日志、管理员全局可见、服务和模型健康监控。</p>
+            </div>
+          </div>
+          <div class="option">
+            <div class="content">
+              <strong>指标管理</strong>
+              <p>模板指标、版本、依据、执行规则统一治理。</p>
+            </div>
+          </div>
+          <div class="option">
+            <div class="content">
+              <strong>知识库管理</strong>
+              <p>多知识库、权重、候选层、审核层、发布层和 chunk 视图。</p>
+            </div>
+          </div>
+          <div class="option">
+            <div class="content">
+              <strong>模型管理</strong>
+              <p>LLM、embedding、rerank、OCR、VL、parser 统一纳管。</p>
+            </div>
+          </div>
+          <div class="option">
+            <div class="content">
+              <strong>智能体流程编排</strong>
+              <p>基于 React Flow 的节点画布、DSL、调试、发布和版本治理。</p>
+            </div>
+          </div>
+          <div class="option">
+            <div class="content">
+              <strong>知识库问答构建</strong>
+              <p>基于已发布知识快速构建可发布问答应用。</p>
+            </div>
+          </div>
+          <div class="option">
+            <div class="content">
+              <strong>智能体广场</strong>
+              <p>统一展示审核智能体与知识问答应用，支持直接运行。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <h3>扩展能力</h3>
+        <p>跨文档一致性校验、复杂条件规则、模型路由降级、应用权限分发、运营统计与告警体系。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>你现在需要拍板的点</h3>
+  <div class="cards">
+    <div class="card" data-choice="demo-first" onclick="toggleSelect(this)">
+      <div class="card-body">
+        <h3>先把演示版做尖</h3>
+        <p>优先打磨一条完整演示链路，方便现场展示和汇报。</p>
+      </div>
+    </div>
+    <div class="card" data-choice="platform-first" onclick="toggleSelect(this)">
+      <div class="card-body">
+        <h3>先把平台骨架铺开</h3>
+        <p>同时把模型、日志、编排、广场都纳入一期设计边界。</p>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,45 @@
+<h2>销售到交付：孪生体应该围绕什么建模？</h2>
+<p class="subtitle">选择会决定流程、数据、Agent 和工作台的组织方式。</p>
+
+<div class="cards">
+  <div class="card" data-choice="crm" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:20px">
+      <div class="mock-nav">线索 &gt; 商机 &gt; 客户</div>
+      <div class="placeholder" style="margin-top:14px">销售漏斗<br><br>报价、合同、赢单率</div>
+      <div style="margin-top:14px;color:#9b1c1c;font-weight:600">交付在流程外部</div>
+    </div>
+    <div class="card-body">
+      <h3>A. CRM 扩展型</h3>
+      <p>以线索、商机、合同为中心，快速提升销售管理，但销售与交付仍容易断层。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="project" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:20px">
+      <div class="mock-nav">立项 &gt; 设计 &gt; 研发 &gt; 测试 &gt; 验收</div>
+      <div class="placeholder" style="margin-top:14px">项目计划<br><br>任务、进度、质量、风险</div>
+      <div style="margin-top:14px;color:#9b1c1c;font-weight:600">售前承诺在流程外部</div>
+    </div>
+    <div class="card-body">
+      <h3>B. 项目管理扩展型</h3>
+      <p>以交付执行为中心，控制研发测试和验收，但难以追溯销售阶段的承诺来源。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="twin" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:20px">
+      <div class="mock-nav">商机 &gt; 承诺 &gt; 基线 &gt; 交付 &gt; 验收</div>
+      <div class="placeholder" style="margin-top:14px">项目数字孪生<br><br>范围、成本、周期、风险、证据</div>
+      <div style="margin-top:14px;color:#176b3a;font-weight:600">所有角色共享同一事实源</div>
+    </div>
+    <div class="card-body">
+      <h3>C. 项目数字孪生型</h3>
+      <p>以“客户承诺能否被交付兑现”为中心，贯通销售与交付。推荐。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">推荐定义</p>
+  <p>每个商机从建立起就是一个潜在交付孪生体；签约后不换系统对象，而是升级为正式交付实例。需求、方案、合同、设计、任务、测试和验收均关联到同一孪生体。</p>
+</div>
