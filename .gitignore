@@ -1,6 +1,8 @@
 # OS/editor files
 .DS_Store
 .idea/
+.claude/
+.codex/
 .vscode/
 *.swp
 *.swo
