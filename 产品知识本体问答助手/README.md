@@ -80,9 +80,38 @@ flowchart LR
 | 回答 | 重排序与回答两次模型调用 | 控制上下文，避免把候选全文交给最终模型。 |
 | 更新 | 同名文件替换、显式删除 | 不将“本次没扫描到”误判为删除。 |
 
-## 5. 运行形态
+## 5. 工程落地规范
 
-### 5.1 知识加工
+实际产品仓库固定命名为 `ProjectIQ`。方案库中的本文档不等于运行仓库；后续工程初始化必须采用以下边界：
+
+```text
+ProjectIQ/
+├── backend/                         # Java / Spring Boot 后端
+├── skills/                          # Codex / Claude 离线知识加工 Skills
+│   ├── knowledge-orchestrator/
+│   ├── knowledge-producer/
+│   ├── knowledge-checker/
+│   └── knowledge-loop-protocol/
+├── plugins/                         # 用户侧插件交付物
+│   └── chrome-extension/
+├── docs/                            # 产品运行、部署与评测资料
+├── knowledge/                       # 本地可信知识目录与处理目录，不提交原始资料
+└── docker-compose.yml               # 本地 Qdrant 与后端依赖编排
+```
+
+`backend/` 的 Maven 坐标固定如下，构件名表达可部署的知识助手，产品仓库名仍为 ProjectIQ：
+
+```xml
+<groupId>io.github.lvdaxianer.dinghai</groupId>
+<artifactId>knowledge-assistant</artifactId>
+<name>知识助手</name>
+```
+
+Java 根包固定为 `io.github.lvdaxianer.dinghai.projectiq`。根包按 `knowledge`、`retrieval`、`chat`、`integration`、`config` 和 `shared` 分组；具体能力内部再按 `api`、`application`、`domain`、`infrastructure`、`repository` 分层。`skills` 与 `plugins` 不直接依赖后端源码，只分别通过可信目录协议和 HTTP/SSE 契约协作。
+
+## 6. 运行形态
+
+### 6.1 知识加工
 
 在 Codex 或 Claude 中给总控 Skill 一个 Markdown 文件或目录：
 
@@ -93,7 +122,7 @@ knowledge-orchestrator /product-docs/
 
 目录模式递归找 Markdown，以文件名字典序逐一处理。前一份成功知识包生成的概念和关系，会作为后一份的局部图谱上下文。详细协议见[知识加工 Skill 协议](./references/知识加工Skill协议.md)。
 
-### 5.2 后端导入
+### 6.2 后端导入
 
 后端固定读取可信目录：
 
@@ -116,7 +145,7 @@ Content-Type: application/json
 
 该接口只开放给部署网络中的内部运维入口，不开放给浏览器插件。导入不负责审核文档，只校验文件对、Hash 和 Schema，再写入 SQLite 并调度 Qdrant 同步。详见[数据、本体与导入设计](./references/数据本体与导入设计.md)。
 
-### 5.3 插件问答
+### 6.3 插件问答
 
 浏览器插件只负责请求和展示：
 
@@ -126,7 +155,7 @@ Popup -> Java POST /api/chat/stream -> SSE delta / sources / done
 
 插件不保存模型密钥，不直接访问 SQLite、Qdrant 或模型网关。详见[检索、回答与浏览器插件](./references/检索回答与浏览器插件.md)。
 
-## 6. 端到端示例
+## 7. 端到端示例
 
 用户问题：
 
@@ -154,7 +183,7 @@ pending_invitation --governed_by--> seat_billing
 
 这里没有让“邀请链接失效”文档越权描述席位规则；该规则只由拥有相应原文证据的计费文档支撑。
 
-## 7. 落地阶段
+## 8. 落地阶段
 
 1. 建立三份 Skill 与共享协议，选取 3 至 5 篇样本文档跑通 Loop。
 2. 实现 Spring Boot 中的 JSON 校验、SQLite 导入和 Qdrant 同步任务。
@@ -162,11 +191,11 @@ pending_invitation --governed_by--> seat_billing
 4. 实现浏览器插件 Popup 与流式渲染。
 5. 用 30 至 50 道真实问题进行召回、跨文档和拒答验收。
 
-## 8. 验收与风险
+## 9. 验收与风险
 
 系统不以“模型回答流畅”作为成功标准。必须验证：正确章节是否出现在 Top 20 召回中、是否进入 Top 3 重排序、本体是否补到必要规则、无资料问题是否拒答、答案来源是否与最终证据一致。详见[运行、观测与验收](./references/运行观测与验收.md)。
 
-## 9. 参考文档
+## 10. 参考文档
 
 - [知识加工 Skill 协议](./references/知识加工Skill协议.md)
 - [可执行 Skill 模板](./references/可执行Skill模板.md)
