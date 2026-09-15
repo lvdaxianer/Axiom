@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Knowledge Checker Verdict",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "sourceHash", "candidateHash"],
+  "properties": {
+    "status": {"enum": ["PASS", "FAIL", "ERROR"]},
+    "sourceHash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "candidateHash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "checkedCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sections": {"type": "integer", "minimum": 0},
+        "concepts": {"type": "integer", "minimum": 0},
+        "relations": {"type": "integer", "minimum": 0}
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issueId", "severity", "code", "candidatePath", "message", "requiredAction"],
+        "properties": {
+          "issueId": {"type": "string", "pattern": "^[A-Z]+-[0-9]+$"},
+          "severity": {"const": "error"},
+          "code": {"enum": ["INVALID_SCHEMA", "SOURCE_HASH_MISMATCH", "UNSUPPORTED_CONTENT", "MISSING_SECTION", "DUPLICATE_CONCEPT", "INVALID_CONCEPT_TYPE", "INVALID_RELATION_TYPE", "INVALID_RELATION_DIRECTION", "UNSUPPORTED_RELATION", "MISSING_EVIDENCE", "INVALID_EVIDENCE_QUOTE", "UNDECLARED_RELATION_RETIREMENT"]},
+          "candidatePath": {"type": "string", "pattern": "^/"},
+          "message": {"type": "string", "minLength": 1},
+          "requiredAction": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "error": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "PASS"}}}, "then": {"required": ["checkedCounts"]}},
+    {"if": {"properties": {"status": {"const": "FAIL"}}}, "then": {"required": ["issues"], "properties": {"issues": {"minItems": 1}}}},
+    {"if": {"properties": {"status": {"const": "ERROR"}}}, "then": {"required": ["error"]}}
+  ]
+}
