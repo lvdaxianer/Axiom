@@ -1,0 +1,73 @@
+thread-pools:
+  global:
+    # 仅受 ThreadPoolGovernor 管理的业务 worker 预算。
+    # Tomcat/Netty、JVM、定时任务和三方库线程需另行预留。
+    managed-worker-budget: 64
+
+    # 进程可承受线程数，包含受管和非受管线程。
+    # high-water-mark 以该值为分母。
+    process-thread-capacity: 192
+
+    # JVM 进程线程水位达到容量规划阈值时进入警戒状态；
+    # 它只收紧 LOW/MEDIUM 任务准入，不改变受管 worker 预算。
+    high-water-mark: 0.8
+
+    # 指标采样间隔（秒）
+    metrics-sample-interval-seconds: 30
+
+    # 每个线程池保留的历史指标条数
+    metrics-retain-count-per-pool: 2000
+
+  defaults:
+    # 默认队列大小（有界队列）
+    queue-size: 100
+
+    # 非核心线程空闲存活时间（秒）
+    keep-alive-seconds: 60
+
+  pools:
+    # 高优先级：订单创建
+    order-create-h:
+      min: 1
+      max: 32
+      weight: 10
+      priority: HIGH
+      reliability: FAIL_FAST
+      queue-size: 200
+
+    # 中优先级：库存同步
+    inventory-sync-m:
+      min: 1
+      max: 16
+      weight: 5
+      priority: MEDIUM
+      reliability: PERSIST_FOR_RETRY
+      queue-size: 50
+
+    # 低优先级：消息推送
+    message-push-l:
+      min: 1
+      max: 8
+      weight: 2
+      priority: LOW
+      reliability: BEST_EFFORT_DROP
+      business-owner: message
+      queue-size: 20
+
+    # 低优先级：报表导出
+    report-export-l:
+      min: 1
+      max: 10
+      weight: 2
+      priority: LOW
+      reliability: FAIL_FAST
+      queue-size: 30
+
+    # 高优先级：支付回调
+    payment-callback-h:
+      min: 1
+      max: 16
+      weight: 8
+      priority: HIGH
+      reliability: PERSIST_FOR_RETRY
+      queue-size: 100
